@@ -2,7 +2,7 @@
 
 **Universal quality measurement engine for AI agent output.**
 
-[![Status: Architecture](https://img.shields.io/badge/Status-Architecture-blue?style=for-the-badge)](https://github.com/rsionnach/arbiter)
+[![Status: Implemented](https://img.shields.io/badge/Status-Implemented-green?style=for-the-badge)](https://github.com/rsionnach/arbiter)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-green?style=for-the-badge)](LICENSE)
 
 If you're running multiple AI agents in production, you're asking the same question every team asks at scale: "which of my agents is producing good work, and which is silently producing garbage?" The Arbiter answers that question. Point it at your agents, and it tells you which ones are reliable, which ones are degrading, and which ones need to be reined in before they cause damage.
@@ -31,32 +31,35 @@ The Arbiter receives agent output (via adapters for different agent systems), ro
 
 ## Quick Start
 
-*The Arbiter is in architecture phase. The following illustrates the intended usage.*
-
 ```yaml
 # arbiter.yaml
 evaluator:
   model: claude-sonnet-4-20250514
-  dimensions: [correctness, completeness, safety]
+  max_tokens: 4096
+
+store:
+  backend: sqlite
+  path: arbiter.db
+
+governance:
+  error_budget_window_days: 7
+  error_budget_threshold: 0.5
+
+dimensions:
+  - correctness
+  - completeness
+  - safety
 
 agents:
   - name: code-reviewer
-    source: webhook
-    judgment_slo:
-      reversal_rate:
-        target: 0.05
-        window: 30d
-
+    adapter: webhook
   - name: doc-writer
-    source: gastown
-    judgment_slo:
-      reversal_rate:
-        target: 0.10
-        window: 30d
+    adapter: webhook
 ```
 
 ```bash
-arbiter start --config arbiter.yaml
+pip install -e .
+arbiter -c arbiter.yaml
 ```
 
 ---
@@ -230,7 +233,7 @@ The Arbiter concept was proven inside GasTown as the Guardian, a Deacon plugin t
 
 ## Status
 
-The Arbiter is in the architecture phase. The design documented here reflects the target architecture, and implementation has not yet started. The core concepts (quality measurement, self-calibration, governance) have been validated through the Guardian implementation in GasTown.
+The Arbiter core is implemented: evaluation pipeline, SQLite score store, trend tracking, override-based calibration, and error-budget governance with a one-way safety ratchet. The model evaluator constructs prompts and parses responses but requires an SDK dependency (e.g. `anthropic`) to be wired for live model calls. Judgment SLOs (reversal rate targets, windowed compliance) are a planned next layer on top of the existing calibration infrastructure.
 
 ---
 
