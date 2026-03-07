@@ -59,7 +59,69 @@ agents:
 
 ```bash
 pip install -e .
-arbiter -c arbiter.yaml
+
+# Start the evaluation pipeline (listens for agent output via webhook)
+arbiter serve
+
+# One-shot evaluation of a file
+arbiter evaluate output.txt --agent-name code-reviewer
+
+# Check agent status (trend window + autonomy level)
+arbiter status code-reviewer
+
+# Run calibration report (how accurate is the Arbiter's own judgment?)
+arbiter calibrate --agent code-reviewer
+```
+
+---
+
+## CLI
+
+All subcommands accept `-c/--config <path>` (default: `arbiter.yaml`).
+
+```bash
+# Start the pipeline — adapter listens, evaluates incoming output, persists scores,
+# runs governance checks. Default when no subcommand is given.
+arbiter serve
+
+# Evaluate a single file or stdin. Prints JSON with scores, confidence, cost.
+arbiter evaluate output.txt --agent-name my-agent --task-id pr-1234
+echo "some output" | arbiter evaluate --agent-name my-agent
+
+# Agent trend window: dimension averages, reversal rate, confidence, cost, autonomy level
+arbiter status my-agent --window-days 14
+
+# Calibration: how well does the Arbiter agree with human corrections?
+# Without --agent: MAE report across all agents
+# With --agent: full judgment SLO compliance report (uses OpenSRM manifest if available)
+arbiter calibrate --window-days 30
+arbiter calibrate --agent code-reviewer --window-days 30
+
+# List recent human overrides (corrections to Arbiter scores)
+arbiter overrides list --days 7 --agent code-reviewer
+
+# Governance: check current autonomy level
+arbiter governance show my-agent
+
+# Governance: restore autonomy (requires human approver — safety ratchet)
+arbiter governance restore my-agent full --approver admin@example.com
+```
+
+### Sample output
+
+```bash
+$ arbiter status code-reviewer
+{
+  "agent_name": "code-reviewer",
+  "window_days": 7,
+  "dimension_averages": {"correctness": 0.87, "completeness": 0.82, "safety": 0.95},
+  "evaluation_count": 42,
+  "confidence_mean": 0.84,
+  "reversal_rate": 0.024,
+  "total_cost_usd": 0.63,
+  "avg_cost_per_eval": 0.015,
+  "autonomy": "full"
+}
 ```
 
 ---
@@ -78,15 +140,71 @@ This separation means the Arbiter is model-agnostic by design. Swap the evaluati
 
 ---
 
-## Self-Calibration
+## Signals & Judgment SLOs
 
-The Arbiter doesn't just evaluate other agents, it evaluates itself. When the Arbiter scores agent output as 'good' and a human later corrects it, that's a measurable signal. The Arbiter tracks its own judgment SLOs:
+The Arbiter tracks two categories of signals: **quality signals** (about the agents it monitors) and **calibration signals** (about its own judgment accuracy).
 
-- **False accept rate:** How often does the Arbiter approve output that humans later reject?
-- **Precision:** When the Arbiter flags something as low quality, how often are humans in agreement?
-- **Recall:** Of the outputs that humans flag as problematic, what percentage did the Arbiter catch?
+### Quality signals (per agent, per rolling window)
 
-Every evaluation the Arbiter produces emits a `gen_ai.decision.*` OTel event. Every human correction emits a `gen_ai.override.*` event. These feed into the Arbiter's own judgment SLO, which the Arbiter itself monitors (and which humans can review through the same dashboards that track any other agent).
+These are computed from stored evaluation scores. No model involvement — pure arithmetic (ZFC: transport).
+
+| Signal | What it measures |
+|--------|-----------------|
+| **Dimension averages** | Mean score per quality dimension (e.g. correctness: 0.87, safety: 0.95) over the window |
+| **Confidence mean** | Average confidence the evaluator model reported in its own scores |
+| **Reversal rate** | Fraction of evaluations that were later corrected by a human override. A reversal rate of 0.05 means 5% of the Arbiter's judgments were wrong enough for a human to step in. |
+| **Cost per evaluation** | Token spend per evaluation, broken down by agent |
+
+### Calibration signals (the Arbiter judging itself)
+
+When a human submits an override (correcting an Arbiter score), that override becomes ground truth. The Arbiter measures how well its judgments align with human corrections:
+
+| Signal | Definition | Good value |
+|--------|-----------|------------|
+| **Reversal rate** | Overridden evaluations / total evaluations | < 0.05 (5%) |
+| **False accept rate** | Of outputs where humans scored lower than the Arbiter, how many did the Arbiter score above the passing threshold? Measures how often the Arbiter lets bad work through. | < 0.02 (2%) |
+| **Precision** | Of outputs the Arbiter flagged as low quality, what fraction did humans agree with (no upward override)? High precision = few false alarms. | > 0.90 |
+| **Recall** | Of outputs humans corrected downward, what fraction did the Arbiter also flag as low quality? High recall = the Arbiter catches what humans catch. | > 0.85 |
+| **MAE** | Mean absolute error between original Arbiter scores and human-corrected scores, per dimension. | < 0.10 |
+
+### OpenSRM judgment SLO targets
+
+When an agent has an [OpenSRM manifest](#integration-with-opensrm), the Arbiter checks calibration signals against declared targets:
+
+```yaml
+slos:
+  judgment:
+    reversal:
+      rate:
+        target: 0.05      # reversal rate must stay below 5%
+        window: 30d
+    high_confidence_failure:
+      target: 0.02         # false accept rate below 2%
+      confidence_threshold: 0.9
+```
+
+Without a manifest, the Arbiter still computes all signals — it just doesn't have compliance targets to check against.
+
+### Running a calibration report
+
+```bash
+$ arbiter calibrate --agent code-reviewer --window-days 30
+{
+  "agent_name": "code-reviewer",
+  "window_days": 30,
+  "reversal_rate": 0.024,
+  "reversal_rate_target": 0.05,
+  "reversal_rate_compliant": true,
+  "false_accept_rate": 0.01,
+  "precision": 0.94,
+  "recall": 0.88,
+  "mae": 0.07,
+  "total_evaluations": 142,
+  "total_overrides": 3
+}
+```
+
+Every `check()` call emits a `gen_ai.calibration.report` OTel event with all metrics, feeding into NthLayer dashboards and SitRep correlation.
 
 ---
 
@@ -96,15 +214,14 @@ The Arbiter subsumes the role of a reliability governor. Rather than having two 
 
 ### How governance works
 
-The Arbiter watches judgment SLO error budgets for every agent it monitors. When an agent's quality degrades beyond its declared thresholds, the Arbiter takes governance actions:
+On each evaluation, the governance engine fetches the agent's trend window and asks the configured model whether autonomy should be reduced. The operator's error budget threshold is passed as context ("the operator considers scores below 0.5 concerning"), but the model makes the judgment call — not a hardcoded comparison (ZFC).
 
-| Trigger | Action |
-|---------|--------|
-| Reversal rate exceeds SLO target | Increase human review threshold for that agent |
-| Error budget exhausted | Reduce agent to advisory-only mode (suggest, don't act) |
-| Sustained good performance above threshold | Propose autonomy increase (requires human approval) |
-| Calibration drift detected | Flag agent for retraining or prompt adjustment |
-| Multiple agents degrading simultaneously | Escalate to human operators, suggest system-wide review |
+| Trigger | Action | Status |
+|---------|--------|--------|
+| Model judges degradation significant | Reduce autonomy one step (full → supervised → advisory-only → suspended) | Implemented |
+| Sustained good performance | Propose autonomy increase (requires human approval) | Planned |
+| Calibration drift detected | Flag for retraining or prompt adjustment | Planned |
+| Multiple agents degrading simultaneously | Escalate, suggest system-wide review | Planned |
 
 ### The one-way safety ratchet
 
