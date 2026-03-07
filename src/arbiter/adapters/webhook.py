@@ -9,14 +9,19 @@ from datetime import datetime, timezone
 
 from arbiter.types import AgentOutput
 
+_MAX_HEADER_SIZE = 65_536  # 64 KB
+_MAX_BODY_SIZE = 10 * 1024 * 1024  # 10 MB
+_MAX_QUEUE_SIZE = 1000
+
 
 class WebhookAdapter:
     """Receives agent output via HTTP webhook POST requests."""
 
-    def __init__(self, host: str = "0.0.0.0", port: int = 8080) -> None:
+    def __init__(self, host: str = "127.0.0.1", port: int = 8080) -> None:
         self._host = host
         self._port = port
-        self._queue: asyncio.Queue[AgentOutput] = asyncio.Queue()
+        self._queue: asyncio.Queue[AgentOutput] = asyncio.Queue(maxsize=_MAX_QUEUE_SIZE)
+        self._server: asyncio.AbstractServer | None = None
 
     def name(self) -> str:
         return "webhook"
@@ -43,13 +48,18 @@ class WebhookAdapter:
     ) -> None:
         """Handle a single HTTP connection — minimal HTTP parsing."""
         try:
-            # Read request line and headers
+            # Read request line and headers with size limit
             header_data = b""
             while b"\r\n\r\n" not in header_data:
                 chunk = await reader.read(4096)
                 if not chunk:
                     return
                 header_data += chunk
+                if len(header_data) > _MAX_HEADER_SIZE:
+                    response = b"HTTP/1.1 431 Request Header Fields Too Large\r\nContent-Length: 0\r\n\r\n"
+                    writer.write(response)
+                    await writer.drain()
+                    return
 
             header_part, _, body_start = header_data.partition(b"\r\n\r\n")
             headers_text = header_part.decode("utf-8", errors="replace")
@@ -61,6 +71,13 @@ class WebhookAdapter:
             for line in lines[1:]:
                 if line.lower().startswith("content-length:"):
                     content_length = int(line.split(":", 1)[1].strip())
+
+            # Reject oversized bodies
+            if content_length > _MAX_BODY_SIZE:
+                response = b"HTTP/1.1 413 Payload Too Large\r\nContent-Length: 0\r\n\r\n"
+                writer.write(response)
+                await writer.drain()
+                return
 
             # Read remaining body
             body = body_start
@@ -79,7 +96,17 @@ class WebhookAdapter:
 
             try:
                 output = self._parse_body(body)
-                await self._queue.put(output)
+                try:
+                    self._queue.put_nowait(output)
+                except asyncio.QueueFull:
+                    error_body = b'{"error":"queue full, try again later"}'
+                    response = (
+                        f"HTTP/1.1 503 Service Unavailable\r\nContent-Type: application/json\r\n"
+                        f"Content-Length: {len(error_body)}\r\n\r\n"
+                    ).encode() + error_body
+                    writer.write(response)
+                    await writer.drain()
+                    return
                 response = b"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 15\r\n\r\n{\"status\":\"ok\"}"
             except (json.JSONDecodeError, ValueError, KeyError) as exc:
                 error_body = json.dumps({"error": str(exc)}).encode()
@@ -92,17 +119,25 @@ class WebhookAdapter:
             await writer.drain()
         finally:
             writer.close()
+            try:
+                await writer.wait_closed()
+            except Exception:
+                pass
 
     async def start_server(self) -> asyncio.AbstractServer:
         """Start the HTTP server. Returns the server for lifecycle management."""
         server = await asyncio.start_server(
             self._handle_connection, self._host, self._port
         )
+        self._server = server
         return server
 
     async def receive(self) -> AsyncIterator[AgentOutput]:
         """Yield validated AgentOutput from the queue (fed by HTTP handler)."""
-        server = await self.start_server()
+        if self._server is None:
+            server = await self.start_server()
+        else:
+            server = self._server
         async with server:
             await server.start_serving()
             while True:

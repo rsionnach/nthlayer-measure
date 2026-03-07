@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import uuid
 from dataclasses import dataclass, replace
@@ -48,6 +49,10 @@ def _compute_cost(model: str, input_tokens: int, output_tokens: int) -> float | 
     return (input_tokens * input_price + output_tokens * output_price) / 1_000_000
 
 
+def _clamp(value: float, low: float = 0.0, high: float = 1.0) -> float:
+    return max(low, min(high, value))
+
+
 class ModelEvaluator:
     """Evaluator that delegates quality judgment to a language model.
 
@@ -56,9 +61,10 @@ class ModelEvaluator:
     not in this code.
     """
 
-    def __init__(self, model: str, max_tokens: int = 4096) -> None:
+    def __init__(self, model: str, max_tokens: int = 4096, timeout: float = 120.0) -> None:
         self._model = model
         self._max_tokens = max_tokens
+        self._timeout = timeout
         self._client = None
 
     def _get_client(self):
@@ -80,7 +86,9 @@ class ModelEvaluator:
 - Type: {output.output_type}
 
 ### Content
+<agent_output>
 {output.output_content}
+</agent_output>
 
 ## Dimensions to Score
 {dimensions_block}
@@ -108,8 +116,11 @@ Respond with valid JSON only:
         text = raw.strip()
         if text.startswith("```"):
             lines = text.split("\n")
-            # Remove first and last fence lines
-            lines = [l for l in lines if not l.strip().startswith("```")]
+            # Remove only the first and last fence lines
+            if lines[0].strip().startswith("```"):
+                lines = lines[1:]
+            if lines and lines[-1].strip().startswith("```"):
+                lines = lines[:-1]
             text = "\n".join(lines)
 
         data = json.loads(text)
@@ -117,7 +128,7 @@ Respond with valid JSON only:
         reasoning: dict[str, str] = {}
 
         for dim_name, dim_data in data["dimensions"].items():
-            dimensions[dim_name] = float(dim_data["score"])
+            dimensions[dim_name] = _clamp(float(dim_data["score"]))
             if "reasoning" in dim_data:
                 reasoning[dim_name] = dim_data["reasoning"]
 
@@ -127,18 +138,23 @@ Respond with valid JSON only:
             task_id=output.task_id,
             dimensions=dimensions,
             reasoning=reasoning,
-            confidence=float(data["confidence"]),
+            confidence=_clamp(float(data["confidence"])),
             evaluator_model=self._model,
         )
 
     async def _call_model(self, prompt: str) -> _ModelResponse:
         """Call the Anthropic API and return text + token counts."""
         client = self._get_client()
-        response = await client.messages.create(
-            model=self._model,
-            max_tokens=self._max_tokens,
-            messages=[{"role": "user", "content": prompt}],
+        response = await asyncio.wait_for(
+            client.messages.create(
+                model=self._model,
+                max_tokens=self._max_tokens,
+                messages=[{"role": "user", "content": prompt}],
+            ),
+            timeout=self._timeout,
         )
+        if not response.content:
+            raise ValueError("Model returned empty content")
         text = response.content[0].text
         return _ModelResponse(
             text=text,

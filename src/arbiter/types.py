@@ -30,15 +30,6 @@ class AgentOutput:
 
 
 @dataclass(frozen=True)
-class DimensionScore:
-    """Score for one quality dimension."""
-
-    name: str
-    score: float
-    reasoning: str
-
-
-@dataclass(frozen=True)
 class QualityScore:
     """Complete evaluation result for a single agent output."""
 
@@ -58,7 +49,7 @@ class GovernanceAction:
     """Action taken by the governance engine."""
 
     agent_name: str
-    action_type: AutonomyLevel
+    target_level: AutonomyLevel
     reason: str
     timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 

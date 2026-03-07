@@ -21,19 +21,19 @@ def _load_config(args: argparse.Namespace) -> ArbiterConfig:
     return load_config(config_path)
 
 
-def _build_store(config: ArbiterConfig):
+def _build_store(config: ArbiterConfig) -> "SQLiteScoreStore":
     from arbiter.store.sqlite import SQLiteScoreStore
 
     return SQLiteScoreStore(config.store.path)
 
 
-def _build_tracker(store):
+def _build_tracker(store: "SQLiteScoreStore") -> "StoreTrendTracker":
     from arbiter.trends.tracker import StoreTrendTracker
 
     return StoreTrendTracker(store)
 
 
-def _build_evaluator(config: ArbiterConfig):
+def _build_evaluator(config: ArbiterConfig) -> "ModelEvaluator":
     from arbiter.pipeline.evaluator import ModelEvaluator
 
     return ModelEvaluator(
@@ -43,12 +43,21 @@ def _build_evaluator(config: ArbiterConfig):
 
 
 def _build_adapter(config: ArbiterConfig):
-    """Build adapter from config. Supports webhook, gastown, devin."""
+    """Build adapter from config. Supports webhook, gastown, devin.
+
+    Currently only the first agent config is used for adapter construction.
+    """
     agents = config.agents
     if not agents:
         from arbiter.adapters.webhook import WebhookAdapter
 
         return WebhookAdapter()
+
+    if len(agents) > 1:
+        print(
+            f"Warning: {len(agents)} agents configured but only the first is used by 'serve'",
+            file=sys.stderr,
+        )
 
     agent = agents[0]
     ac = agent.adapter_config
@@ -93,6 +102,7 @@ def _build_pipeline(config: ArbiterConfig):
         tracker=tracker,
         window_days=config.governance.error_budget_window_days,
         threshold=config.governance.error_budget_threshold,
+        model=config.evaluator.model,
     )
     thresholds = SLOThresholds(
         max_reversal_rate=config.detection.max_reversal_rate,

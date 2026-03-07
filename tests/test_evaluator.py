@@ -85,6 +85,32 @@ def test_compute_cost_unknown_model():
     assert cost is None
 
 
+def test_parse_response_clamps_out_of_range_scores(evaluator, sample_output):
+    response = json.dumps({
+        "dimensions": {
+            "correctness": {"score": 1.5, "reasoning": "Over"},
+            "style": {"score": -0.3, "reasoning": "Under"},
+        },
+        "confidence": 2.0,
+    })
+    score = evaluator.parse_response(response, sample_output)
+    assert score.dimensions["correctness"] == pytest.approx(1.0)
+    assert score.dimensions["style"] == pytest.approx(0.0)
+    assert score.confidence == pytest.approx(1.0)
+
+
+def test_parse_response_strips_only_outer_fences(evaluator, sample_output):
+    """Code fences within JSON values should not be stripped."""
+    inner = json.dumps({
+        "dimensions": {"x": {"score": 0.5, "reasoning": "r"}},
+        "confidence": 0.6,
+    })
+    # Wrap with fences
+    response = f"```json\n{inner}\n```"
+    score = evaluator.parse_response(response, sample_output)
+    assert score.dimensions["x"] == pytest.approx(0.5)
+
+
 @pytest.mark.asyncio
 async def test_evaluate_with_mock_client(evaluator, sample_output):
     response_json = json.dumps({

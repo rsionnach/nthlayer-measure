@@ -62,7 +62,7 @@ class ArbiterConfig:
     store: StoreConfig = field(default_factory=StoreConfig)
     governance: GovernanceConfig = field(default_factory=GovernanceConfig)
     detection: DetectionConfig = field(default_factory=DetectionConfig)
-    dimensions: list[str] = field(default_factory=lambda: ["correctness", "completeness", "style"])
+    dimensions: list[str] = field(default_factory=lambda: ["correctness", "completeness", "safety"])
     agents: list[AgentConfig] = field(default_factory=list)
 
 
@@ -72,14 +72,26 @@ def load_config(path: Path) -> ArbiterConfig:
     if raw is None:
         return ArbiterConfig()
 
-    evaluator = EvaluatorConfig(**raw["evaluator"]) if "evaluator" in raw else EvaluatorConfig()
-    store = StoreConfig(**raw["store"]) if "store" in raw else StoreConfig()
-    governance = GovernanceConfig(**raw["governance"]) if "governance" in raw else GovernanceConfig()
-    detection = DetectionConfig(**raw["detection"]) if "detection" in raw else DetectionConfig()
-    dimensions = raw.get("dimensions", ["correctness", "completeness", "style"])
+    def _section(key: str, cls: type):
+        section = raw.get(key)
+        if section is None:
+            return cls()
+        if not isinstance(section, dict):
+            raise ValueError(f"Config section '{key}' must be a mapping, got {type(section).__name__}")
+        return cls(**section)
+
+    evaluator = _section("evaluator", EvaluatorConfig)
+    store = _section("store", StoreConfig)
+    governance = _section("governance", GovernanceConfig)
+    detection = _section("detection", DetectionConfig)
+    dimensions = raw.get("dimensions", ["correctness", "completeness", "safety"])
 
     agents = []
-    for agent_data in raw.get("agents", []):
+    for i, agent_data in enumerate(raw.get("agents", [])):
+        if not isinstance(agent_data, dict):
+            raise ValueError(f"agents[{i}] must be a mapping, got {type(agent_data).__name__}")
+        if "name" not in agent_data:
+            raise ValueError(f"agents[{i}] missing required field 'name'")
         agents.append(AgentConfig(
             name=agent_data["name"],
             adapter=agent_data.get("adapter", "webhook"),

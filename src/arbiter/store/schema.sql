@@ -48,4 +48,5 @@ CREATE TABLE IF NOT EXISTS governance_log (
 
 CREATE INDEX IF NOT EXISTS idx_evaluations_agent ON evaluations(agent_name, created_at);
 CREATE INDEX IF NOT EXISTS idx_overrides_eval ON overrides(eval_id);
+CREATE INDEX IF NOT EXISTS idx_overrides_created ON overrides(created_at);
 CREATE INDEX IF NOT EXISTS idx_governance_log_agent ON governance_log(agent_name, created_at);

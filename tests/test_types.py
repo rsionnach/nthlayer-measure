@@ -4,7 +4,6 @@ import pytest
 from arbiter.types import (
     AgentOutput,
     AutonomyLevel,
-    DimensionScore,
     GovernanceAction,
     QualityScore,
     TrendWindow,
@@ -105,15 +104,10 @@ def test_trend_window_new_fields_explicit():
     assert tw.avg_cost_per_eval == 0.01
 
 
-def test_dimension_score_construction():
-    ds = DimensionScore(name="correctness", score=0.95, reasoning="Looks good")
-    assert ds.score == 0.95
-
-
 def test_governance_action_construction():
     ga = GovernanceAction(
         agent_name="bot",
-        action_type=AutonomyLevel.SUPERVISED,
+        target_level=AutonomyLevel.SUPERVISED,
         reason="Score dropped",
     )
-    assert ga.action_type == AutonomyLevel.SUPERVISED
+    assert ga.target_level == AutonomyLevel.SUPERVISED

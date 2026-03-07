@@ -23,11 +23,21 @@ class JudgmentSLO:
 
 
 def _parse_window(window_str: str) -> int:
-    """Parse a window string like '30d' into days."""
+    """Parse a window string like '30d' into an integer number of days.
+
+    Supported formats: '30d', '30', or bare integer 30.
+    """
     s = str(window_str).strip().lower()
     if s.endswith("d"):
-        return int(s[:-1])
-    return int(s)
+        s = s[:-1]
+    if not s:
+        raise ValueError(f"Invalid window value: {window_str!r}")
+    try:
+        return int(s)
+    except ValueError:
+        raise ValueError(
+            f"Invalid window value: {window_str!r}. Expected '<int>d' or '<int>' (e.g. '30d')"
+        ) from None
 
 
 def load_manifest(path: Path) -> JudgmentSLO | None:

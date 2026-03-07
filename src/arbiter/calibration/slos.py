@@ -10,6 +10,8 @@ from datetime import datetime, timedelta, timezone
 
 from arbiter.manifest import JudgmentSLO
 from arbiter.store.protocol import ScoreStore
+from arbiter.telemetry import emit_calibration_report_event
+from arbiter.types import QualityScore
 
 
 @dataclass(frozen=True)
@@ -50,9 +52,9 @@ class JudgmentSLOChecker:
         )
 
         total_evals = len(scores)
-        total_overrides = len(overrides)
+        total_overrides_count = len(overrides)
 
-        # Build lookup: eval_id -> QualityScore
+        # Build lookup: eval_id -> QualityScore.dimensions
         score_by_id: dict[str, dict[str, float]] = {}
         for s in scores:
             score_by_id[s.eval_id] = s.dimensions
@@ -63,84 +65,23 @@ class JudgmentSLOChecker:
             eid = ov["eval_id"]
             overrides_by_eval.setdefault(eid, []).append(ov)
 
-        # Reversal rate: fraction of evals that have any override
-        eval_ids_with_overrides = set(overrides_by_eval.keys())
-        reversal_rate = (
-            len(eval_ids_with_overrides) / total_evals if total_evals > 0 else 0.0
+        reversal_rate = self._compute_reversal_rate(overrides_by_eval, total_evals)
+        false_accept_rate = self._compute_false_accept_rate(
+            overrides_by_eval, score_by_id, score_threshold
         )
-
-        # False accept rate: of downward overrides, how many had original avg >= threshold?
-        downward_eval_ids: set[str] = set()
-        for eid, ovs in overrides_by_eval.items():
-            for ov in ovs:
-                if ov["corrected_score"] < ov["original_score"]:
-                    downward_eval_ids.add(eid)
-                    break
-
-        false_accepts = 0
-        for eid in downward_eval_ids:
-            dims = score_by_id.get(eid, {})
-            if dims:
-                avg = sum(dims.values()) / len(dims)
-                if avg >= score_threshold:
-                    false_accepts += 1
-
-        false_accept_rate = (
-            false_accepts / len(downward_eval_ids)
-            if downward_eval_ids
-            else 0.0
+        precision = self._compute_precision(
+            scores, overrides_by_eval, score_threshold
         )
-
-        # Precision: of evals evaluator scored low (avg < threshold),
-        # what fraction had no upward override (human agrees it's low)?
-        scored_low_ids: list[str] = []
-        for s in scores:
-            if s.dimensions:
-                avg = sum(s.dimensions.values()) / len(s.dimensions)
-                if avg < score_threshold:
-                    scored_low_ids.append(s.eval_id)
-
-        if scored_low_ids:
-            agreed_low = 0
-            for eid in scored_low_ids:
-                has_upward = False
-                for ov in overrides_by_eval.get(eid, []):
-                    if ov["corrected_score"] > ov["original_score"]:
-                        has_upward = True
-                        break
-                if not has_upward:
-                    agreed_low += 1
-            precision = agreed_low / len(scored_low_ids)
-        else:
-            precision = 1.0
-
-        # Recall: of evals humans flagged as problematic (downward override),
-        # what fraction did evaluator also score < threshold?
-        if downward_eval_ids:
-            caught = 0
-            for eid in downward_eval_ids:
-                dims = score_by_id.get(eid, {})
-                if dims:
-                    avg = sum(dims.values()) / len(dims)
-                    if avg < score_threshold:
-                        caught += 1
-            recall = caught / len(downward_eval_ids)
-        else:
-            recall = 1.0
-
-        # MAE from overrides
-        if overrides:
-            mae = sum(
-                abs(ov["original_score"] - ov["corrected_score"]) for ov in overrides
-            ) / len(overrides)
-        else:
-            mae = 0.0
+        recall = self._compute_recall(
+            overrides_by_eval, score_by_id, score_threshold
+        )
+        mae = self._compute_mae(overrides)
 
         # Windowed compliance
         target = self._slo.reversal_rate_target if self._slo else None
         compliant = reversal_rate <= target if target is not None else None
 
-        return JudgmentSLOReport(
+        report = JudgmentSLOReport(
             agent_name=agent_name,
             window_days=window_days,
             reversal_rate=reversal_rate,
@@ -151,5 +92,112 @@ class JudgmentSLOChecker:
             recall=recall,
             mae=mae,
             total_evaluations=total_evals,
-            total_overrides=total_overrides,
+            total_overrides=total_overrides_count,
         )
+
+        emit_calibration_report_event(
+            agent_name=agent_name,
+            window_days=window_days,
+            reversal_rate=reversal_rate,
+            false_accept_rate=false_accept_rate,
+            precision=precision,
+            recall=recall,
+            mae=mae,
+            compliant=compliant,
+        )
+
+        return report
+
+    @staticmethod
+    def _compute_reversal_rate(
+        overrides_by_eval: dict[str, list[dict]], total_evals: int
+    ) -> float:
+        if total_evals == 0:
+            return 0.0
+        return len(overrides_by_eval) / total_evals
+
+    @staticmethod
+    def _compute_false_accept_rate(
+        overrides_by_eval: dict[str, list[dict]],
+        score_by_id: dict[str, dict[str, float]],
+        score_threshold: float,
+    ) -> float:
+        downward_eval_ids: set[str] = set()
+        for eid, ovs in overrides_by_eval.items():
+            for ov in ovs:
+                if ov["corrected_score"] < ov["original_score"]:
+                    downward_eval_ids.add(eid)
+                    break
+
+        if not downward_eval_ids:
+            return 0.0
+
+        false_accepts = 0
+        for eid in downward_eval_ids:
+            dims = score_by_id.get(eid, {})
+            if dims:
+                avg = sum(dims.values()) / len(dims)
+                if avg >= score_threshold:
+                    false_accepts += 1
+
+        return false_accepts / len(downward_eval_ids)
+
+    @staticmethod
+    def _compute_precision(
+        scores: list[QualityScore],
+        overrides_by_eval: dict[str, list[dict]],
+        score_threshold: float,
+    ) -> float:
+        scored_low_ids: list[str] = []
+        for s in scores:
+            if s.dimensions:
+                avg = sum(s.dimensions.values()) / len(s.dimensions)
+                if avg < score_threshold:
+                    scored_low_ids.append(s.eval_id)
+
+        if not scored_low_ids:
+            return 1.0
+
+        agreed_low = 0
+        for eid in scored_low_ids:
+            has_upward = False
+            for ov in overrides_by_eval.get(eid, []):
+                if ov["corrected_score"] > ov["original_score"]:
+                    has_upward = True
+                    break
+            if not has_upward:
+                agreed_low += 1
+        return agreed_low / len(scored_low_ids)
+
+    @staticmethod
+    def _compute_recall(
+        overrides_by_eval: dict[str, list[dict]],
+        score_by_id: dict[str, dict[str, float]],
+        score_threshold: float,
+    ) -> float:
+        downward_eval_ids: set[str] = set()
+        for eid, ovs in overrides_by_eval.items():
+            for ov in ovs:
+                if ov["corrected_score"] < ov["original_score"]:
+                    downward_eval_ids.add(eid)
+                    break
+
+        if not downward_eval_ids:
+            return 1.0
+
+        caught = 0
+        for eid in downward_eval_ids:
+            dims = score_by_id.get(eid, {})
+            if dims:
+                avg = sum(dims.values()) / len(dims)
+                if avg < score_threshold:
+                    caught += 1
+        return caught / len(downward_eval_ids)
+
+    @staticmethod
+    def _compute_mae(overrides: list[dict]) -> float:
+        if not overrides:
+            return 0.0
+        return sum(
+            abs(ov["original_score"] - ov["corrected_score"]) for ov in overrides
+        ) / len(overrides)

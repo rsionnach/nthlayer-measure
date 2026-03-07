@@ -53,9 +53,23 @@ The adapter is the only integration point with external systems. Any agent syste
 
 Implemented adapters: webhook (generic HTTP POST), GasTown (polls bd quality-review-result wisps), Devin (polls Devin REST API for completed sessions). The webhook adapter is the default and works with anything.
 
+**Adapter implementation notes:**
+- **webhook**: Raw asyncio TCP server (no framework). 64 KB header limit, 10 MB body limit, 1000-item internal queue. POST-only; returns 400/413/431/503 on violations.
+- **gastown**: Uses `asyncio.create_subprocess_exec` (not `shell=True`) to prevent injection. Queries `type:plugin-run` + `plugin:quality-review-result` wisps created in the last hour. Maps `worker` label to `agent_name`.
+- **devin**: Lazy `httpx.AsyncClient`. Polls `/v1/sessions`, fetches detail for completed/stopped/failed sessions. Uses `structured_output` if present, falls back to `title`. Sets `agent_name = "devin:{session_id}"`.
+- Both polling adapters (gastown, devin) use a bounded seen-set capped at 10 000 entries to prevent unbounded memory growth.
+
 ### Evaluation Pipeline
 
 Receives normalised agent output from adapters, constructs an evaluation prompt with the output and declared quality dimensions, calls the configured evaluation model, parses and persists the resulting scores. The evaluation model is configured per-deployment — Claude, Gemini, or a local model. The transport layer is identical regardless of which model is used.
+
+**ModelEvaluator details:**
+- Lazy-init `anthropic.AsyncAnthropic` client; uses `asyncio.wait_for` with a 120 s timeout.
+- Scores are clamped to [0.0, 1.0]. Markdown code fences are stripped before JSON parsing.
+- Cost is computed from a hardcoded pricing table (returns `None` for unknown models):
+  - `claude-sonnet-4-20250514`: $3.00 / $15.00 per MTok (input/output)
+  - `claude-haiku-4-20250414`: $0.80 / $4.00 per MTok
+  - `claude-opus-4-20250514`: $15.00 / $75.00 per MTok
 
 ### Score Store
 
@@ -86,6 +100,11 @@ Implemented as ErrorBudgetGovernance. Currently watches dimension averages again
 | Multiple agents degrading simultaneously | Escalate, suggest system-wide review |
 
 **The one-way safety ratchet is a hard constraint:** the Governance Engine can always reduce agent autonomy. It can never increase autonomy without explicit human approval. This is not a policy decision — it is a design constraint. Do not build any code path that autonomously increases agent permissions.
+
+**ErrorBudgetGovernance implementation details:**
+- Reduction ladder: `FULL → SUPERVISED → ADVISORY_ONLY → SUSPENDED` (SUSPENDED is terminal).
+- `restore_autonomy(agent, level, approver)` raises `ValueError` if `approver` is an empty string.
+- Triggers on any dimension average falling below the configured threshold (default 0.5).
 
 ---
 
@@ -170,6 +189,22 @@ agents:
       api_key_env: DEVIN_API_KEY
       poll_interval: 30
 ```
+
+---
+
+## CLI Subcommands
+
+`arbiter` is the entry point (`python -m arbiter` or installed script). All subcommands accept `-c/--config <path>` (default: `arbiter.yaml`). When no subcommand is given, `serve` runs by default.
+
+| Subcommand | Purpose |
+|------------|---------|
+| `serve` | Start the full evaluation pipeline (adapter → evaluator → store → governance). Only the first agent in `agents:` is wired; warns to stderr if more than one is configured. |
+| `evaluate [file] --agent-name A [--task-id T] [--output-type T]` | One-shot evaluation from positional file path or stdin; prints JSON result |
+| `status <agent_name> [--window-days N]` | Print trend window + autonomy level as JSON (agent_name is positional) |
+| `calibrate [--agent A] [--window-days N]` | MAE report (all agents) or SLO compliance report (per agent with manifest) |
+| `overrides list [--agent A] [--days N]` | List recent human overrides as JSON (`list` is a required sub-subcommand) |
+| `governance show <agent_name>` | Print current autonomy level (agent_name is positional) |
+| `governance restore <agent_name> <level> --approver P` | Restore autonomy; agent_name and level are positional, --approver is required (safety ratchet) |
 
 ---
 

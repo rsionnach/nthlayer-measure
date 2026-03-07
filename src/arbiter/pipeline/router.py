@@ -10,6 +10,10 @@ from arbiter.store.protocol import ScoreStore
 from arbiter.telemetry import emit_decision_event
 from arbiter.trends.tracker import TrendTracker
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 class PipelineRouter:
     """Routes agent output through the evaluation pipeline.
@@ -54,10 +58,4 @@ class PipelineRouter:
             emit_decision_event(score, alerts)
 
             if self._governance is not None:
-                action = await self._governance.check_agent(output.agent_name)
-                if action is not None:
-                    await self._store.set_autonomy(
-                        output.agent_name,
-                        action.action_type.value,
-                        "governance:pipeline",
-                    )
+                await self._governance.check_agent(output.agent_name)
