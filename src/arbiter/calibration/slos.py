@@ -23,9 +23,9 @@ class JudgmentSLOReport:
     reversal_rate: float
     reversal_rate_target: float | None
     reversal_rate_compliant: bool | None
-    false_accept_rate: float
-    precision: float
-    recall: float
+    false_accept_rate: float | None
+    precision: float | None
+    recall: float | None
     mae: float
     total_evaluations: int
     total_overrides: int
@@ -42,7 +42,6 @@ class JudgmentSLOChecker:
         self,
         agent_name: str,
         window_days: int = 30,
-        score_threshold: float = 0.5,
     ) -> JudgmentSLOReport:
         since = datetime.now(timezone.utc) - timedelta(days=window_days)
 
@@ -66,16 +65,26 @@ class JudgmentSLOChecker:
             overrides_by_eval.setdefault(eid, []).append(ov)
 
         reversal_rate = self._compute_reversal_rate(overrides_by_eval, total_evals)
-        false_accept_rate = self._compute_false_accept_rate(
-            overrides_by_eval, score_by_id, score_threshold
-        )
-        precision = self._compute_precision(
-            scores, overrides_by_eval, score_threshold
-        )
-        recall = self._compute_recall(
-            overrides_by_eval, score_by_id, score_threshold
-        )
         mae = self._compute_mae(overrides)
+
+        # Quality threshold from manifest — fail open (None) when absent.
+        # Without operator-declared threshold, code cannot classify quality.
+        score_threshold = self._slo.quality_threshold if self._slo else None
+
+        if score_threshold is not None:
+            false_accept_rate = self._compute_false_accept_rate(
+                overrides_by_eval, score_by_id, score_threshold
+            )
+            precision = self._compute_precision(
+                scores, overrides_by_eval, score_threshold
+            )
+            recall = self._compute_recall(
+                overrides_by_eval, score_by_id, score_threshold
+            )
+        else:
+            false_accept_rate = None
+            precision = None
+            recall = None
 
         # Windowed compliance
         target = self._slo.reversal_rate_target if self._slo else None

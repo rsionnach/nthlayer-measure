@@ -29,6 +29,17 @@ def _score(eval_id: str, agent: str = "agent-a", dims: dict | None = None, confi
     )
 
 
+def _slo_with_quality_threshold(threshold: float = 0.5) -> JudgmentSLO:
+    return JudgmentSLO(
+        agent_name="agent-a",
+        reversal_rate_target=0.05,
+        reversal_rate_window_days=30,
+        high_confidence_failure_target=0.02,
+        confidence_threshold=0.9,
+        quality_threshold=threshold,
+    )
+
+
 @pytest.mark.asyncio
 async def test_false_accept_rate(store):
     """Evals overridden downward that had high avg scores should count as false accepts."""
@@ -39,8 +50,8 @@ async def test_false_accept_rate(store):
     # Score e2: high quality (avg 0.85) — no override
     await store.save_score(_score("e2", dims={"correctness": 0.9, "style": 0.8}))
 
-    checker = JudgmentSLOChecker(store)
-    report = await checker.check("agent-a", window_days=7, score_threshold=0.5)
+    checker = JudgmentSLOChecker(store, slo=_slo_with_quality_threshold(0.5))
+    report = await checker.check("agent-a", window_days=7)
 
     # 1 downward override, original avg 0.85 >= 0.5 → false accept
     assert report.false_accept_rate == pytest.approx(1.0)
@@ -56,8 +67,8 @@ async def test_precision(store):
     await store.save_score(_score("e2", dims={"correctness": 0.3, "style": 0.2}))
     await store.save_override("e2", {"correctness": 0.9}, "human")
 
-    checker = JudgmentSLOChecker(store)
-    report = await checker.check("agent-a", window_days=7, score_threshold=0.5)
+    checker = JudgmentSLOChecker(store, slo=_slo_with_quality_threshold(0.5))
+    report = await checker.check("agent-a", window_days=7)
 
     # 2 scored low, 1 agreed → precision = 0.5
     assert report.precision == pytest.approx(0.5)
@@ -74,8 +85,8 @@ async def test_recall(store):
     await store.save_score(_score("e2", dims={"correctness": 0.3, "style": 0.2}))
     await store.save_override("e2", {"correctness": 0.1}, "human")
 
-    checker = JudgmentSLOChecker(store)
-    report = await checker.check("agent-a", window_days=7, score_threshold=0.5)
+    checker = JudgmentSLOChecker(store, slo=_slo_with_quality_threshold(0.5))
+    report = await checker.check("agent-a", window_days=7)
 
     # 2 human-flagged (downward overrides), 1 evaluator caught (low score) → recall = 0.5
     assert report.recall == pytest.approx(0.5)
@@ -106,8 +117,8 @@ async def test_windowed_compliance(store):
 
 
 @pytest.mark.asyncio
-async def test_slo_report_no_overrides(store):
-    """With no overrides, rates should be 0 and precision/recall should be 1.0."""
+async def test_slo_report_no_manifest_fails_open(store):
+    """Without a manifest quality_threshold, threshold-dependent metrics are None."""
     await store.save_score(_score("e1"))
     await store.save_score(_score("e2"))
 
@@ -115,12 +126,28 @@ async def test_slo_report_no_overrides(store):
     report = await checker.check("agent-a", window_days=7)
 
     assert report.reversal_rate == 0.0
+    assert report.false_accept_rate is None
+    assert report.precision is None
+    assert report.recall is None
+    assert report.mae == 0.0
+    assert report.total_evaluations == 2
+    assert report.total_overrides == 0
+
+
+@pytest.mark.asyncio
+async def test_slo_report_with_quality_threshold(store):
+    """With a manifest quality_threshold, threshold-dependent metrics are computed."""
+    await store.save_score(_score("e1"))
+    await store.save_score(_score("e2"))
+
+    checker = JudgmentSLOChecker(store, slo=_slo_with_quality_threshold(0.5))
+    report = await checker.check("agent-a", window_days=7)
+
+    assert report.reversal_rate == 0.0
     assert report.false_accept_rate == 0.0
     assert report.precision == 1.0
     assert report.recall == 1.0
     assert report.mae == 0.0
-    assert report.total_evaluations == 2
-    assert report.total_overrides == 0
 
 
 @pytest.mark.asyncio

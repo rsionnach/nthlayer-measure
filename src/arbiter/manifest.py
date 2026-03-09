@@ -20,6 +20,7 @@ class JudgmentSLO:
     reversal_rate_window_days: int
     high_confidence_failure_target: float
     confidence_threshold: float
+    quality_threshold: float | None = None
 
 
 def _parse_window(window_str: str) -> int:
@@ -64,6 +65,7 @@ def load_manifest(path: Path) -> JudgmentSLO | None:
 
     reversal = judgment.get("reversal", {}).get("rate", {})
     hcf = judgment.get("high_confidence_failure", {})
+    raw_qt = judgment.get("quality_threshold")
 
     return JudgmentSLO(
         agent_name=agent_name,
@@ -71,4 +73,5 @@ def load_manifest(path: Path) -> JudgmentSLO | None:
         reversal_rate_window_days=_parse_window(reversal.get("window", "30d")),
         high_confidence_failure_target=float(hcf.get("target", 0.02)),
         confidence_threshold=float(hcf.get("confidence_threshold", 0.9)),
+        quality_threshold=float(raw_qt) if raw_qt is not None else None,
     )

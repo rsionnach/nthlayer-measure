@@ -39,13 +39,38 @@ Judgment involves interpretation, evaluation, or any decision where context chan
 - Recommending an action (nudge, escalate, park) based on agent behaviour patterns
 
 
+## Policy Enforcement vs Quality Judgment
+
+Not all threshold comparisons are judgment calls. ZFC distinguishes between two uses of thresholds in code:
+
+**Policy Enforcement (compliant — code handles this):**
+- Budget caps: "stop spending after $100"
+- Rate limits: "no more than 10 requests per minute"
+- Confidence gates: "don't proceed if confidence is below 0.7"
+- Approval gates: "don't execute without human sign-off"
+
+These are mechanical stop/go decisions with no ambiguity. The operator declares a hard limit, and code enforces it. The code is not interpreting quality — it is enforcing a constraint.
+
+**Quality Judgment (forbidden — model handles this):**
+- "Is this score good enough?" — depends on context
+- "Is this agent degrading?" — depends on trend interpretation
+- "Should we alert on this pattern?" — depends on what the pattern means
+- Classifying outputs as "low quality" vs "acceptable" based on a numeric threshold
+
+The difference: policy enforcement gates are binary (proceed/don't proceed) and context-independent. Quality judgments classify or rank and the right answer changes based on what you're looking at. A budget cap of $100 means the same thing regardless of the task. A quality threshold of 0.5 means something completely different for a documentation review vs a security audit.
+
+When a threshold is used as operator context for a model ("the operator considers rates above 20% concerning"), that is ZFC-compliant. When the same threshold is used by code to classify quality (`if avg < 0.5: label = "low_quality"`), that is a violation.
+
+
 ## Practical Implications
 
-### Config is guidance, not logic
+### Config as context, not as triggers
 
 Traditional approach: config defines thresholds, code compares values against thresholds, code decides the outcome.
 
 ZFC approach: config defines context and preferences, the model receives that context alongside the data, the model decides the outcome. A rejection rate threshold of 0.20 in config means "the operator considers 20% rejection concerning" not "trigger WARN at exactly 0.20."
+
+This does not apply to policy enforcement. A budget cap of $100 in config means exactly "stop at $100." That is a mechanical gate, not a quality assessment.
 
 ### Fail open on model unavailability
 
@@ -58,6 +83,26 @@ Because judgment comes from the model, every judgment is inherently auditable. T
 ### Model-agnostic by design
 
 Transport code doesn't care which model provides the judgment. Swap Claude for Gemini, GPT, or a local model and the transport layer is unchanged. The quality of judgment changes, which is itself measurable through the self-calibration loop. This makes every tool in the ecosystem model-portable without code changes.
+
+
+## ZFC Categories (from Steve Yegge's AGENTS.md)
+
+**ZFC-Compliant (code):**
+- IO and Plumbing — read/write files, parse JSON, persist to stores, watch events
+- Structural Safety Checks — schema validation, required fields, path traversal prevention, timeouts
+- Policy Enforcement — budget caps, rate limits, confidence gates, approval gates
+- Mechanical Transforms — parameter substitution, compilation, formatting model output
+- State Management — lifecycle tracking, progress monitoring, escalation policy execution
+- Typed Error Handling — SDK error classes, no message parsing
+
+**ZFC-Violations (model only):**
+- Ranking/Scoring/Selection — any algorithm choosing among alternatives based on heuristics
+- Plan/Composition/Scheduling — decisions about dependencies, ordering, parallelization, retry policies
+- Semantic Analysis — inferring complexity, scope, file dependencies, "what should be done next"
+- Heuristic Classification — keyword-based routing, fallback decision trees, domain-specific rules
+- Quality Judgment — opinionated validation beyond structural safety
+
+**The correct flow:** Gather raw context (IO only) → Call AI for decisions → Validate structure → Execute mechanically.
 
 
 ## What ZFC Is Not
