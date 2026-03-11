@@ -303,38 +303,40 @@ The Arbiter is one component in the OpenSRM ecosystem. Each component solves a c
          │+cost     │ │          │ │          │ │          │
          └────┬─────┘ └────┬─────┘ └────┬─────┘ └────┬─────┘
               │             │             │             │
-              └──────┬──────┴──────┬──────┘             │
-                     ▼             ▼                    ▼
-              ┌────────────────────────────┐  ┌──────────────┐
-              │  Streaming / Queue Layer   │  │  Consumes    │
-              │  (Kafka / NATS / etc)      │  │  all three   │
-              └──────────┬─────────────────┘  └──────┬───────┘
-                         ▼                           │
-              ┌────────────────────────┐             │
-              │   OTel Collector /     │             │
-              │   Prometheus / etc     │             │
-              └────────────────────────┘             │
-                                                     │
-              ┌──────────────────────────────────────┘
-              │  Learning loop (post-incident):
-              │  Mayday findings → manifest updates
-              │  → NthLayer regenerates → Arbiter
-              │  refines → SitRep improves
-              └──────────────────────────────────────▶ OpenSRM
+              └─────────────┴──────┬──────┴─────────────┘
+                                   ▼
+                     ┌──────────────────────────┐
+                     │      Verdict Store       │
+                     │  (shared data substrate) │
+                     │ create · resolve · link  │
+                     │ accuracy · gaming-check  │
+                     └────────────┬─────────────┘
+                                  │ OTel side-effects
+                                  ▼
+                     ┌──────────────────────────┐
+                     │    OTel Collector /      │
+                     │   Prometheus / Grafana   │
+                     └──────────────────────────┘
+
+              Learning loop (post-incident):
+              Mayday findings → manifest updates
+              → NthLayer regenerates → Arbiter
+              refines → SitRep improves → OpenSRM
 ```
 
 **How the Arbiter fits in:**
 
-- **Quality scores** that the Arbiter produces flow as OTel metrics into the streaming layer, where [NthLayer](https://github.com/rsionnach/nthlayer) generates dashboards for them, [SitRep](https://github.com/rsionnach/sitrep) correlates them with other signals (like recent deployments or model version changes), and [Mayday](https://github.com/rsionnach/mayday) uses them during incident response
-- **Governance decisions** from the Arbiter adjust agent autonomy across the ecosystem, including Mayday's incident response agents and SitRep's correlation agent
+- Every evaluation produces a **verdict** stored in the shared Verdict Store. Self-calibration queries `verdict.accuracy()` to measure the Arbiter's own judgment quality. Human overrides call `verdict.resolve()` — the same mechanism used across all ecosystem components.
+- **Quality verdicts** flow to [SitRep](https://github.com/rsionnach/sitrep) as events for correlation with other signals (deployments, model version changes), and to [Mayday](https://github.com/rsionnach/mayday) during incident response. OTel side-effects of verdict operations feed [NthLayer](https://github.com/rsionnach/nthlayer)-generated dashboards.
+- **Governance decisions** adjust agent autonomy across the ecosystem, including Mayday's incident response agents and SitRep's correlation agent
 - **Cost tracking data** feeds into NthLayer-generated dashboards so operators see quality and cost together
-- The Arbiter consumes **change events** (via the OpenSRM change event schema) to contextualise quality shifts, distinguishing between quality drops caused by model version changes and genuine agent degradation
 
 Each component works alone. Someone who just needs agent quality measurement adopts the Arbiter without needing NthLayer, SitRep, or Mayday.
 
 | Component | What it does | Link |
 |-----------|-------------|------|
 | **OpenSRM** | Specification for declaring service reliability requirements | [opensrm](https://github.com/rsionnach/opensrm) |
+| **Verdict** | Data primitive for recording AI judgments and measuring correctness | [verdicts](https://github.com/rsionnach/verdicts) |
 | **Arbiter** | Quality measurement and governance for AI agents (this repo) | [arbiter](https://github.com/rsionnach/arbiter) |
 | **NthLayer** | Generate monitoring infrastructure from manifests | [nthlayer](https://github.com/rsionnach/nthlayer) |
 | **SitRep** | Situational awareness through signal correlation | [sitrep](https://github.com/rsionnach/sitrep) |
