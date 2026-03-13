@@ -93,8 +93,17 @@ def _build_pipeline(config: ArbiterConfig):
     from arbiter.detection.detector import SLOThresholds, ThresholdDetector
     from arbiter.governance.engine import ErrorBudgetGovernance
     from arbiter.pipeline.router import PipelineRouter
+    from arbiter.store.sqlite import SQLiteScoreStore
 
-    store = _build_store(config)
+    # Build verdict store if configured
+    verdict_store = None
+    if config.verdict is not None:
+        from verdict import SQLiteVerdictStore
+        verdict_store = SQLiteVerdictStore(config.verdict.store_path)
+
+    # Share the same verdict store between score store (for override resolution)
+    # and router (for verdict creation)
+    store = SQLiteScoreStore(config.store.path, verdict_store=verdict_store)
     tracker = _build_tracker(store)
     evaluator = _build_evaluator(config)
     governance = ErrorBudgetGovernance(
@@ -120,6 +129,7 @@ def _build_pipeline(config: ArbiterConfig):
         dimensions=config.dimensions,
         governance=governance,
         detector=detector,
+        verdict_store=verdict_store,
     )
 
 

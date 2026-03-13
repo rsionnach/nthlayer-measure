@@ -18,7 +18,7 @@ import pytest_asyncio
 from verdict import SQLiteVerdictStore, AccuracyFilter, VerdictFilter, create as verdict_create
 
 from arbiter.calibration.verdict_calibration import VerdictCalibration
-from arbiter.cli import cmd_calibrate
+from arbiter.cli import cmd_calibrate, _build_pipeline
 from arbiter.config import ArbiterConfig, VerdictConfig, load_config
 from arbiter.pipeline.router import DEFAULT_APPROVE_THRESHOLD, PipelineRouter
 from arbiter.store.sqlite import SQLiteScoreStore
@@ -598,3 +598,29 @@ class TestEndToEndFeedbackLoop:
         cal_report = await cal.check()
         assert cal_report.total_resolved == 3
         assert cal_report.override_rate == pytest.approx(1 / 3, abs=0.01)
+
+
+class TestCLIVerdictWiring:
+    """Tests that CLI wires verdict store when config has verdict section."""
+
+    def test_build_pipeline_includes_verdict_store(self, tmp_path):
+        from arbiter.config import ArbiterConfig, VerdictConfig
+
+        config = ArbiterConfig(
+            verdict=VerdictConfig(
+                store_path=str(tmp_path / "verdicts.db"),
+            ),
+        )
+        config.store.path = str(tmp_path / "arbiter.db")
+
+        router = _build_pipeline(config)
+        assert router._verdict_store is not None
+
+    def test_build_pipeline_no_verdict_config(self, tmp_path):
+        from arbiter.config import ArbiterConfig
+
+        config = ArbiterConfig()
+        config.store.path = str(tmp_path / "arbiter.db")
+
+        router = _build_pipeline(config)
+        assert router._verdict_store is None
