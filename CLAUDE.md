@@ -144,9 +144,9 @@ Implemented as ErrorBudgetGovernance. On each `check_agent` call, fetches the ag
 
 ## Verdict Integration
 
-The Arbiter's evaluation output is designed to become a verdict (see `verdicts/` and `VERDICT-INTEGRATION.md`). Integration is planned but not yet implemented.
+The Arbiter's evaluation output becomes a verdict. Integration is implemented (Phase 1, 2026-03-13). Every evaluation creates a verdict via `PipelineRouter.run()`, every human override resolves the linked verdict, and system-wide accuracy is queryable via `VerdictCalibration` or `arbiter calibrate --verdict`.
 
-**When integrated, each evaluation call will:**
+**Each evaluation call creates a verdict:**
 ```python
 from verdict import create, resolve
 from verdict.models import Producer, Subject, Judgment

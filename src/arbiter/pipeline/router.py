@@ -60,11 +60,18 @@ class PipelineRouter:
             score = await self._evaluator.evaluate(output, self._dimensions)
             await self._store.save_score(score)
 
-            # Create verdict if verdict store is configured
+            # Create verdict if verdict store is configured (fail open)
             if self._verdict_store is not None:
-                verdict = await self._create_verdict(score)
-                await asyncio.to_thread(self._verdict_store.put, verdict)
-                await self._store.set_verdict_id(score.eval_id, verdict.id)
+                try:
+                    verdict = await self._create_verdict(score)
+                    await asyncio.to_thread(self._verdict_store.put, verdict)
+                    await self._store.set_verdict_id(score.eval_id, verdict.id)
+                except Exception:
+                    logger.warning(
+                        "Failed to create/store verdict for %s — continuing without verdict",
+                        score.eval_id,
+                        exc_info=True,
+                    )
 
             alerts = None
             if self._detector is not None:
