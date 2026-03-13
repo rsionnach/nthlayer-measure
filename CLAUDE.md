@@ -142,6 +142,45 @@ Implemented as ErrorBudgetGovernance. On each `check_agent` call, fetches the ag
 
 ---
 
+## Verdict Integration
+
+The Arbiter's evaluation output is designed to become a verdict (see `verdicts/` and `VERDICT-INTEGRATION.md`). Integration is planned but not yet implemented.
+
+**When integrated, each evaluation call will:**
+```python
+from verdict import create, resolve
+from verdict.models import Producer, Subject, Judgment
+
+v = create(
+    subject={"type": "agent_output", "agent": agent_name, "ref": diff_ref,
+             "summary": diff_summary, "content_hash": hash_of_input},
+    judgment={"action": "approve", "score": evaluation_score,
+              "confidence": evaluation_confidence, "dimensions": dimension_scores,
+              "reasoning": evaluation_reasoning},
+    producer={"system": "arbiter", "model": model_used, "prompt_version": prompt_version},
+)
+store.put(v)
+```
+
+**When a human overrides:**
+```python
+resolve(v, status="overridden", override={"by": "human:" + human_id,
+        "action": corrected_action, "reasoning": why_overrode})
+```
+
+**Self-calibration becomes:**
+`verdict.accuracy(AccuracyFilter(producer_system="arbiter"))` — replaces the existing calibration state. False accept rate = override rate on verdicts where `judgment.action == "approve"`. Precision = confirmation rate on verdicts where Arbiter flagged issues.
+
+**Verdict config (to add):**
+```yaml
+verdict:
+  store:
+    backend: sqlite
+    path: verdicts.db
+```
+
+---
+
 ## OpenSRM Integration
 
 When an OpenSRM manifest is present, the Arbiter reads judgment SLO thresholds from it:
@@ -260,6 +299,7 @@ agents:
 | Component | Role |
 |-----------|------|
 | [opensrm](https://github.com/rsionnach/opensrm) | Shared manifest spec |
+| [verdict](../verdicts/) | Data primitive — Arbiter evaluation output becomes a verdict; self-calibration queries verdict accuracy |
 | [arbiter](https://github.com/rsionnach/arbiter) | This repo — quality measurement + governance |
 | [nthlayer](https://github.com/rsionnach/nthlayer) | Generates monitoring infrastructure from manifests |
 | [sitrep](https://github.com/rsionnach/sitrep) | Signal correlation and situational awareness |
