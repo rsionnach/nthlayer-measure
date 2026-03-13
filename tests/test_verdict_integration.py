@@ -497,3 +497,104 @@ class TestCalibrateVerdictFlag:
             with pytest.raises(SystemExit):
                 cmd_calibrate(args)
         assert "verdict" in buf.getvalue().lower()
+
+
+class TestEndToEndFeedbackLoop:
+    """End-to-end test: score -> verdict -> override -> resolution -> accuracy."""
+
+    @pytest_asyncio.fixture
+    async def stores(self, tmp_path):
+        verdict_store = SQLiteVerdictStore(str(tmp_path / "verdicts.db"))
+        score_store = SQLiteScoreStore(
+            tmp_path / "scores.db", verdict_store=verdict_store,
+        )
+        yield score_store, verdict_store
+        score_store.close()
+        verdict_store.close()
+
+    @pytest.mark.asyncio
+    async def test_full_feedback_loop(self, stores):
+        score_store, verdict_store = stores
+
+        # 1. Three agent outputs scored through the pipeline
+        scores = [
+            _make_score(
+                eval_id="e1", agent="coder", task="pr-101",
+                dimensions={"correctness": 0.9, "safety": 0.8},
+                confidence=0.9,
+            ),
+            _make_score(
+                eval_id="e2", agent="coder", task="pr-102",
+                dimensions={"correctness": 0.7, "safety": 0.6},
+                confidence=0.7,
+            ),
+            _make_score(
+                eval_id="e3", agent="coder", task="pr-103",
+                dimensions={"correctness": 0.3, "safety": 0.2},
+                confidence=0.5,
+            ),
+        ]
+
+        router = PipelineRouter(
+            adapter=AsyncMock(),
+            evaluator=AsyncMock(),
+            store=score_store,
+            tracker=AsyncMock(),
+            dimensions=["correctness", "safety"],
+            verdict_store=verdict_store,
+        )
+
+        for score in scores:
+            output = MagicMock()
+            output.agent_name = score.agent_name
+
+            async def _receive(o=output):
+                yield o
+
+            router._adapter.receive = _receive
+            router._evaluator.evaluate = AsyncMock(return_value=score)
+            await router.run()
+
+        # 2. Verify three verdicts exist
+        verdicts = verdict_store.query(
+            VerdictFilter(producer_system="arbiter", limit=0),
+        )
+        assert len(verdicts) == 3
+
+        # e1 avg=0.85 -> approve, e2 avg=0.65 -> approve, e3 avg=0.25 -> reject
+        actions = sorted([v.judgment.action for v in verdicts])
+        assert actions == ["approve", "approve", "reject"]
+
+        # 3. Check accuracy before any overrides — all pending
+        report_before = verdict_store.accuracy(
+            AccuracyFilter(producer_system="arbiter"),
+        )
+        assert report_before.total == 3
+        assert report_before.total_resolved == 0
+        assert report_before.pending_rate == pytest.approx(1.0)
+
+        # 4. Override e1 — human disagrees with the approve
+        await score_store.save_override(
+            "e1", {"correctness": 0.3}, "senior-reviewer",
+        )
+
+        # 5. Confirm e2 and e3 manually (resolve their verdicts)
+        for v in verdicts:
+            if v.subject.ref in ("pr-102", "pr-103"):
+                verdict_store.resolve(v.id, "confirmed")
+
+        # 6. Check accuracy after resolutions
+        report_after = verdict_store.accuracy(
+            AccuracyFilter(producer_system="arbiter"),
+        )
+        assert report_after.total == 3
+        assert report_after.total_resolved == 3
+        # 2 confirmed, 1 overridden
+        assert report_after.confirmation_rate == pytest.approx(2 / 3, abs=0.01)
+        assert report_after.override_rate == pytest.approx(1 / 3, abs=0.01)
+
+        # 7. VerdictCalibration should report the same
+        cal = VerdictCalibration(verdict_store)
+        cal_report = await cal.check()
+        assert cal_report.total_resolved == 3
+        assert cal_report.override_rate == pytest.approx(1 / 3, abs=0.01)
