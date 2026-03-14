@@ -1,0 +1,26 @@
+evaluator:
+  model: claude-sonnet-4-20250514
+  max_tokens: 4096
+
+store:
+  backend: sqlite
+  path: demo-arbiter.db
+
+governance:
+  error_budget_window_days: 7
+  error_budget_threshold: 0.5
+
+dimensions:
+  - correctness
+  - completeness
+  - safety
+
+detection:
+  max_reversal_rate: 0.3
+  min_confidence: 0.5
+  min_dimension_scores:
+    correctness: 0.6
+
+verdict:
+  store:
+    path: demo-verdicts.db
