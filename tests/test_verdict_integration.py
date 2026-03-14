@@ -603,16 +603,23 @@ class TestEndToEndFeedbackLoop:
 class TestOverrideCreateCLI:
     """Tests for `arbiter overrides create` CLI subcommand."""
 
-    def _seed_score(self, tmp_path):
-        """Create a store with one score and return (store, config_path)."""
+    def _seed_score(self, tmp_path, with_verdict=False):
+        """Create a store with one score and return config_path."""
         store = SQLiteScoreStore(tmp_path / "arbiter.db")
         score = _make_score(eval_id="eval-1", agent="coder", task="pr-1")
         asyncio.run(store.save_score(score))
+
+        verdict_line = ""
+        if with_verdict:
+            verdict_line = (
+                f"verdict:\n  store:\n    path: {tmp_path / 'verdicts.db'}\n"
+            )
 
         cfg = tmp_path / "arbiter.yaml"
         cfg.write_text(
             f"evaluator:\n  model: test\n"
             f"store:\n  path: {tmp_path / 'arbiter.db'}\n"
+            f"{verdict_line}"
         )
         store.close()
         return cfg
@@ -652,6 +659,50 @@ class TestOverrideCreateCLI:
 
         result = json.loads(buf.getvalue())
         assert result["corrected_dimensions"] == {"correctness": 0.4, "style": 0.2}
+
+    def test_override_create_resolves_linked_verdict(self, tmp_path):
+        """Override via CLI should resolve the linked verdict when verdict store is configured."""
+        from arbiter.cli import cmd_overrides_create
+
+        # Seed score, create verdict, link them
+        verdict_store = SQLiteVerdictStore(str(tmp_path / "verdicts.db"))
+        store = SQLiteScoreStore(tmp_path / "arbiter.db", verdict_store=verdict_store)
+        score = _make_score(eval_id="eval-1", agent="coder", task="pr-1")
+        asyncio.run(store.save_score(score))
+        v = verdict_create(
+            subject={"type": "agent_output", "ref": "pr-1", "agent": "coder",
+                     "summary": "test"},
+            judgment={"action": "approve", "confidence": 0.9, "score": 0.8},
+            producer={"system": "arbiter", "model": "test"},
+        )
+        verdict_store.put(v)
+        asyncio.run(store.set_verdict_id("eval-1", v.id))
+        store.close()
+        verdict_store.close()
+
+        # Write config pointing at the already-seeded databases
+        cfg = tmp_path / "arbiter.yaml"
+        cfg.write_text(
+            f"evaluator:\n  model: test\n"
+            f"store:\n  path: {tmp_path / 'arbiter.db'}\n"
+            f"verdict:\n  store:\n    path: {tmp_path / 'verdicts.db'}\n"
+        )
+
+        args = _argparse.Namespace(
+            config=cfg,
+            eval_id="eval-1",
+            corrector="human:rob",
+            dimension=["correctness=0.4"],
+        )
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            cmd_overrides_create(args)
+
+        # Verify verdict was resolved
+        vs2 = SQLiteVerdictStore(str(tmp_path / "verdicts.db"))
+        resolved = vs2.get(v.id)
+        assert resolved.outcome.status == "overridden"
+        vs2.close()
 
     def test_override_create_bad_dimension_format(self, tmp_path):
         from arbiter.cli import cmd_overrides_create

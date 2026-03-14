@@ -274,7 +274,14 @@ def cmd_calibrate(args: argparse.Namespace) -> None:
 def cmd_overrides_create(args: argparse.Namespace) -> None:
     """Create a human override for an evaluation."""
     config = _load_config(args)
-    store = _build_store(config)
+
+    verdict_store = None
+    if config.verdict is not None:
+        from verdict import SQLiteVerdictStore
+        verdict_store = SQLiteVerdictStore(config.verdict.store_path)
+
+    from arbiter.store.sqlite import SQLiteScoreStore
+    store = SQLiteScoreStore(config.store.path, verdict_store=verdict_store)
 
     corrected_dimensions: dict[str, float] = {}
     for d in args.dimension:
