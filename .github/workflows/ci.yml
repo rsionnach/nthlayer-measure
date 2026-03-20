@@ -6,9 +6,6 @@ on:
   pull_request:
     branches: [main, develop]
 
-env:
-  NTHLAYER_LEARN_GIT: "nthlayer-learn@git+https://github.com/rsionnach/nthlayer-learn.git@main#subdirectory=lib/python"
-
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -23,21 +20,19 @@ jobs:
         uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
+          cache-dependency-glob: "uv.lock"
 
       - name: Set up Python ${{ matrix.python-version }}
         run: uv python install ${{ matrix.python-version }}
 
       - name: Install dependencies
-        run: |
-          uv venv
-          uv pip install "$NTHLAYER_LEARN_GIT"
-          uv pip install -e ".[dev]"
+        run: uv sync --extra dev --no-sources
 
       - name: Run linting
-        run: .venv/bin/ruff check src/ tests/ --ignore E501,B008,F841,B007,E402,E721,E722,B012,I001,F821,E741
+        run: uv run --no-sync ruff check src/ tests/ --ignore E501,B008,F841,B007,E402,E721,E722,B012,I001,F821,E741
 
       - name: Run tests
-        run: .venv/bin/pytest tests/ -v --tb=short -x
+        run: uv run --no-sync pytest tests/ -v --tb=short -x
 
   lint:
     runs-on: ubuntu-latest
@@ -51,13 +46,10 @@ jobs:
         run: uv python install 3.11
 
       - name: Install dependencies
-        run: |
-          uv venv
-          uv pip install "$NTHLAYER_LEARN_GIT"
-          uv pip install -e ".[dev]"
+        run: uv sync --extra dev --no-sources
 
       - name: Run ruff
-        run: .venv/bin/ruff check src/ tests/ --ignore E501,B008,F841,B007,E402,E721,E722,B012,I001,F821,E741
+        run: uv run --no-sync ruff check src/ tests/ --ignore E501,B008,F841,B007,E402,E721,E722,B012,I001,F821,E741
 
   security:
     runs-on: ubuntu-latest
@@ -71,12 +63,9 @@ jobs:
         run: uv python install 3.11
 
       - name: Install dependencies
-        run: |
-          uv venv
-          uv pip install "$NTHLAYER_LEARN_GIT"
-          uv pip install -e ".[dev]"
+        run: uv sync --extra dev --no-sources
 
       - name: Run pip-audit
         run: |
           uv pip install pip-audit
-          .venv/bin/pip-audit --progress-spinner off || echo "pip-audit found vulnerabilities (non-blocking)"
+          uv run --no-sync pip-audit --progress-spinner off || echo "pip-audit found vulnerabilities (non-blocking)"
