@@ -8,6 +8,7 @@ on:
 
 env:
   NTHLAYER_LEARN_GIT: "nthlayer-learn@git+https://github.com/rsionnach/nthlayer-learn.git@main#subdirectory=lib/python"
+  UV_NO_SOURCES: "1"
 
 jobs:
   test:
@@ -32,7 +33,7 @@ jobs:
         run: |
           uv venv
           uv pip install "$NTHLAYER_LEARN_GIT"
-          UV_NO_SOURCES=1 uv pip install -e ".[dev]"
+          uv pip install -e ".[dev]"
 
       - name: Run linting
         run: uv run ruff check src/ tests/ --ignore E501,B008,F841,B007,E402,E721,E722,B012,I001,F821,E741
@@ -55,7 +56,7 @@ jobs:
         run: |
           uv venv
           uv pip install "$NTHLAYER_LEARN_GIT"
-          UV_NO_SOURCES=1 uv pip install -e ".[dev]"
+          uv pip install -e ".[dev]"
 
       - name: Run ruff
         run: uv run ruff check src/ tests/ --ignore E501,B008,F841,B007,E402,E721,E722,B012,I001,F821,E741
@@ -75,7 +76,7 @@ jobs:
         run: |
           uv venv
           uv pip install "$NTHLAYER_LEARN_GIT"
-          UV_NO_SOURCES=1 uv pip install -e ".[dev]"
+          uv pip install -e ".[dev]"
 
       - name: Run pip-audit
         run: |
