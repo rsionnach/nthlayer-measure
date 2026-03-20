@@ -5,8 +5,8 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 
-from arbiter.detection.protocol import Alert
-from arbiter.types import TrendWindow
+from nthlayer_measure.detection.protocol import Alert
+from nthlayer_measure.types import TrendWindow
 
 logger = logging.getLogger(__name__)
 

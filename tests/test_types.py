@@ -1,7 +1,7 @@
 """Tests for Arbiter data types."""
 
 import pytest
-from arbiter.types import (
+from nthlayer_measure.types import (
     AgentOutput,
     AutonomyLevel,
     GovernanceAction,

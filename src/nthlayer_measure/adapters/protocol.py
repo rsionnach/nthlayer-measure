@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import AsyncIterator
 from typing import Protocol
 
-from arbiter.types import AgentOutput
+from nthlayer_measure.types import AgentOutput
 
 
 class Adapter(Protocol):

@@ -9,8 +9,8 @@ import sys
 from dataclasses import asdict
 from pathlib import Path
 
-from arbiter.config import ArbiterConfig, load_config
-from arbiter.types import AutonomyLevel
+from nthlayer_measure.config import ArbiterConfig, load_config
+from nthlayer_measure.types import AutonomyLevel
 
 
 def _load_config(args: argparse.Namespace) -> ArbiterConfig:
@@ -22,19 +22,19 @@ def _load_config(args: argparse.Namespace) -> ArbiterConfig:
 
 
 def _build_store(config: ArbiterConfig) -> "SQLiteScoreStore":
-    from arbiter.store.sqlite import SQLiteScoreStore
+    from nthlayer_measure.store.sqlite import SQLiteScoreStore
 
     return SQLiteScoreStore(config.store.path)
 
 
 def _build_tracker(store: "SQLiteScoreStore") -> "StoreTrendTracker":
-    from arbiter.trends.tracker import StoreTrendTracker
+    from nthlayer_measure.trends.tracker import StoreTrendTracker
 
     return StoreTrendTracker(store)
 
 
 def _build_evaluator(config: ArbiterConfig) -> "ModelEvaluator":
-    from arbiter.pipeline.evaluator import ModelEvaluator
+    from nthlayer_measure.pipeline.evaluator import ModelEvaluator
 
     return ModelEvaluator(
         model=config.evaluator.model,
@@ -49,7 +49,7 @@ def _build_adapter(config: ArbiterConfig):
     """
     agents = config.agents
     if not agents:
-        from arbiter.adapters.webhook import WebhookAdapter
+        from nthlayer_measure.adapters.webhook import WebhookAdapter
 
         return WebhookAdapter()
 
@@ -63,7 +63,7 @@ def _build_adapter(config: ArbiterConfig):
     ac = agent.adapter_config
 
     if agent.adapter == "gastown":
-        from arbiter.adapters.gastown import GasTownAdapter
+        from nthlayer_measure.adapters.gastown import GasTownAdapter
 
         return GasTownAdapter(
             rig_name=ac.get("rig_name", ""),
@@ -71,7 +71,7 @@ def _build_adapter(config: ArbiterConfig):
             bd_path=ac.get("bd_path", "bd"),
         )
     elif agent.adapter == "devin":
-        from arbiter.adapters.devin import DevinAdapter
+        from nthlayer_measure.adapters.devin import DevinAdapter
         import os
 
         api_key_env = ac.get("api_key_env", "DEVIN_API_KEY")
@@ -81,7 +81,7 @@ def _build_adapter(config: ArbiterConfig):
             base_url=ac.get("base_url", "https://api.devin.ai"),
         )
     else:
-        from arbiter.adapters.webhook import WebhookAdapter
+        from nthlayer_measure.adapters.webhook import WebhookAdapter
 
         return WebhookAdapter(
             host=ac.get("host", "0.0.0.0"),
@@ -90,15 +90,15 @@ def _build_adapter(config: ArbiterConfig):
 
 
 def _build_pipeline(config: ArbiterConfig):
-    from arbiter.detection.detector import SLOThresholds, ThresholdDetector
-    from arbiter.governance.engine import ErrorBudgetGovernance
-    from arbiter.pipeline.router import PipelineRouter
-    from arbiter.store.sqlite import SQLiteScoreStore
+    from nthlayer_measure.detection.detector import SLOThresholds, ThresholdDetector
+    from nthlayer_measure.governance.engine import ErrorBudgetGovernance
+    from nthlayer_measure.pipeline.router import PipelineRouter
+    from nthlayer_measure.store.sqlite import SQLiteScoreStore
 
     # Build verdict store if configured
     verdict_store = None
     if config.verdict is not None:
-        from verdict import SQLiteVerdictStore
+        from nthlayer_learn import SQLiteVerdictStore
         verdict_store = SQLiteVerdictStore(config.verdict.store_path)
 
     # Share the same verdict store between score store (for override resolution)
@@ -145,7 +145,7 @@ def cmd_serve(args: argparse.Namespace) -> None:
 
 def cmd_evaluate(args: argparse.Namespace) -> None:
     """One-shot evaluation of a file or stdin."""
-    from arbiter.types import AgentOutput
+    from nthlayer_measure.types import AgentOutput
 
     config = _load_config(args)
     store = _build_store(config)
@@ -219,8 +219,8 @@ def cmd_calibrate(args: argparse.Namespace) -> None:
             )
             sys.exit(1)
 
-        from verdict import SQLiteVerdictStore
-        from arbiter.calibration.verdict_calibration import VerdictCalibration
+        from nthlayer_learn import SQLiteVerdictStore
+        from nthlayer_measure.calibration.verdict_calibration import VerdictCalibration
 
         verdict_store = SQLiteVerdictStore(config.verdict.store_path)
         cal = VerdictCalibration(verdict_store)
@@ -248,8 +248,8 @@ def cmd_calibrate(args: argparse.Namespace) -> None:
 
     async def _run():
         if args.agent:
-            from arbiter.calibration.slos import JudgmentSLOChecker
-            from arbiter.manifest import JudgmentSLO, load_manifest
+            from nthlayer_measure.calibration.slos import JudgmentSLOChecker
+            from nthlayer_measure.manifest import JudgmentSLO, load_manifest
 
             slo = None
             for ac in config.agents:
@@ -261,7 +261,7 @@ def cmd_calibrate(args: argparse.Namespace) -> None:
             report = await checker.check(args.agent, window_days=args.window_days)
             return asdict(report)
         else:
-            from arbiter.calibration.loop import OverrideCalibration
+            from nthlayer_measure.calibration.loop import OverrideCalibration
 
             cal = OverrideCalibration(store)
             report = await cal.calibrate(window_days=args.window_days)
@@ -277,10 +277,10 @@ def cmd_overrides_create(args: argparse.Namespace) -> None:
 
     verdict_store = None
     if config.verdict is not None:
-        from verdict import SQLiteVerdictStore
+        from nthlayer_learn import SQLiteVerdictStore
         verdict_store = SQLiteVerdictStore(config.verdict.store_path)
 
-    from arbiter.store.sqlite import SQLiteScoreStore
+    from nthlayer_measure.store.sqlite import SQLiteScoreStore
     store = SQLiteScoreStore(config.store.path, verdict_store=verdict_store)
 
     corrected_dimensions: dict[str, float] = {}
@@ -346,7 +346,7 @@ def cmd_governance_restore(args: argparse.Namespace) -> None:
     store = _build_store(config)
     tracker = _build_tracker(store)
 
-    from arbiter.governance.engine import ErrorBudgetGovernance
+    from nthlayer_measure.governance.engine import ErrorBudgetGovernance
 
     governance = ErrorBudgetGovernance(
         store=store,
@@ -374,7 +374,7 @@ def cmd_governance_restore(args: argparse.Namespace) -> None:
 def main() -> None:
     """Entry point with subcommands."""
     parser = argparse.ArgumentParser(
-        prog="arbiter",
+        prog="nthlayer-measure",
         description="Arbiter — AI agent quality measurement",
     )
     parser.add_argument(
@@ -458,7 +458,7 @@ def _dispatch_governance(args: argparse.Namespace) -> None:
     elif args.gov_command == "restore":
         cmd_governance_restore(args)
     else:
-        print("Usage: arbiter governance {show,restore}", file=sys.stderr)
+        print("Usage: nthlayer-measure governance {show,restore}", file=sys.stderr)
         sys.exit(1)
 
 
@@ -468,7 +468,7 @@ def _dispatch_overrides(args: argparse.Namespace) -> None:
     elif args.overrides_command == "create":
         cmd_overrides_create(args)
     else:
-        print("Usage: arbiter overrides {list,create}", file=sys.stderr)
+        print("Usage: nthlayer-measure overrides {list,create}", file=sys.stderr)
         sys.exit(1)
 
 

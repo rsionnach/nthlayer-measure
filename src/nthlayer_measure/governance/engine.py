@@ -11,9 +11,9 @@ import json
 import logging
 from typing import Protocol
 
-from arbiter.store.protocol import ScoreStore
-from arbiter.trends.tracker import TrendTracker
-from arbiter.types import AutonomyLevel, GovernanceAction, TrendWindow
+from nthlayer_measure.store.protocol import ScoreStore
+from nthlayer_measure.trends.tracker import TrendTracker
+from nthlayer_measure.types import AutonomyLevel, GovernanceAction, TrendWindow
 
 logger = logging.getLogger(__name__)
 

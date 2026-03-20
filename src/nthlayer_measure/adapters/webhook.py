@@ -7,7 +7,7 @@ import json
 from collections.abc import AsyncIterator
 from datetime import datetime, timezone
 
-from arbiter.types import AgentOutput
+from nthlayer_measure.types import AgentOutput
 
 _MAX_HEADER_SIZE = 65_536  # 64 KB
 _MAX_BODY_SIZE = 10 * 1024 * 1024  # 10 MB

@@ -2,7 +2,7 @@
 
 import pytest
 
-from arbiter.adapters.gastown import GasTownAdapter
+from nthlayer_measure.adapters.gastown import GasTownAdapter
 
 
 def _make_wisp(wisp_id: str = "w1", worker: str = "polecat-1", rig: str = "wyvern", score: str = "0.85"):

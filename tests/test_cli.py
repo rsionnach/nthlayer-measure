@@ -5,7 +5,7 @@ import pytest
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
-from arbiter.cli import (
+from nthlayer_measure.cli import (
     cmd_evaluate,
     cmd_status,
     cmd_calibrate,
@@ -14,7 +14,7 @@ from arbiter.cli import (
     cmd_governance_restore,
     main,
 )
-from arbiter.types import QualityScore, TrendWindow
+from nthlayer_measure.types import QualityScore, TrendWindow
 
 
 @pytest.fixture
@@ -91,8 +91,8 @@ def test_evaluate_reads_file(tmp_path, config_file, capsys):
     mock_store = AsyncMock()
     mock_store.save_score = AsyncMock()
 
-    with patch("arbiter.cli._build_evaluator", return_value=mock_evaluator), \
-         patch("arbiter.cli._build_store", return_value=mock_store):
+    with patch("nthlayer_measure.cli._build_evaluator", return_value=mock_evaluator), \
+         patch("nthlayer_measure.cli._build_store", return_value=mock_store):
         args = _make_args(
             config=config_file,
             file=test_file,
@@ -126,8 +126,8 @@ def test_status_shows_window(config_file, capsys):
     mock_tracker = AsyncMock()
     mock_tracker.compute_window = AsyncMock(return_value=window)
 
-    with patch("arbiter.cli._build_store", return_value=mock_store), \
-         patch("arbiter.cli._build_tracker", return_value=mock_tracker):
+    with patch("nthlayer_measure.cli._build_store", return_value=mock_store), \
+         patch("nthlayer_measure.cli._build_tracker", return_value=mock_tracker):
         args = _make_args(
             config=config_file,
             agent_name="test-agent",
@@ -143,7 +143,7 @@ def test_status_shows_window(config_file, capsys):
 
 
 def test_calibrate_runs_report(config_file, capsys):
-    from arbiter.calibration.loop import CalibrationReport
+    from nthlayer_measure.calibration.loop import CalibrationReport
 
     report = CalibrationReport(
         total_overrides=5,
@@ -155,8 +155,8 @@ def test_calibrate_runs_report(config_file, capsys):
     mock_cal = AsyncMock()
     mock_cal.calibrate = AsyncMock(return_value=report)
 
-    with patch("arbiter.cli._build_store", return_value=mock_store), \
-         patch("arbiter.calibration.loop.OverrideCalibration", return_value=mock_cal):
+    with patch("nthlayer_measure.cli._build_store", return_value=mock_store), \
+         patch("nthlayer_measure.calibration.loop.OverrideCalibration", return_value=mock_cal):
         args = _make_args(config=config_file, window_days=30, agent=None)
         cmd_calibrate(args)
 
@@ -172,7 +172,7 @@ def test_overrides_list(config_file, capsys):
         {"eval_id": "e1", "dimension": "correctness", "original_score": 0.9, "corrected_score": 0.5}
     ])
 
-    with patch("arbiter.cli._build_store", return_value=mock_store):
+    with patch("nthlayer_measure.cli._build_store", return_value=mock_store):
         args = _make_args(config=config_file, days=7, agent=None)
         cmd_overrides_list(args)
 
@@ -186,7 +186,7 @@ def test_governance_show(config_file, capsys):
     mock_store = AsyncMock()
     mock_store.get_autonomy = AsyncMock(return_value="supervised")
 
-    with patch("arbiter.cli._build_store", return_value=mock_store):
+    with patch("nthlayer_measure.cli._build_store", return_value=mock_store):
         args = _make_args(config=config_file, agent_name="test-agent")
         cmd_governance_show(args)
 
@@ -202,9 +202,9 @@ def test_governance_restore_requires_approver(config_file, capsys):
     mock_gov = AsyncMock()
     mock_gov.restore_autonomy = AsyncMock()
 
-    with patch("arbiter.cli._build_store", return_value=mock_store), \
-         patch("arbiter.cli._build_tracker", return_value=mock_tracker), \
-         patch("arbiter.governance.engine.ErrorBudgetGovernance", return_value=mock_gov):
+    with patch("nthlayer_measure.cli._build_store", return_value=mock_store), \
+         patch("nthlayer_measure.cli._build_tracker", return_value=mock_tracker), \
+         patch("nthlayer_measure.governance.engine.ErrorBudgetGovernance", return_value=mock_gov):
         args = _make_args(
             config=config_file,
             agent_name="test-agent",

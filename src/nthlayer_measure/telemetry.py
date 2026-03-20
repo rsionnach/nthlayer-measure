@@ -8,8 +8,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from arbiter.detection.protocol import Alert
-    from arbiter.types import QualityScore
+    from nthlayer_measure.detection.protocol import Alert
+    from nthlayer_measure.types import QualityScore
 
 try:
     from opentelemetry import trace

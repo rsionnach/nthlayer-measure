@@ -8,10 +8,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
-from arbiter.manifest import JudgmentSLO
-from arbiter.store.protocol import ScoreStore
-from arbiter.telemetry import emit_calibration_report_event
-from arbiter.types import QualityScore
+from nthlayer_measure.manifest import JudgmentSLO
+from nthlayer_measure.store.protocol import ScoreStore
+from nthlayer_measure.telemetry import emit_calibration_report_event
+from nthlayer_measure.types import QualityScore
 
 
 @dataclass(frozen=True)

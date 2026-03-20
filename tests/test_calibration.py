@@ -3,9 +3,9 @@
 import pytest
 import pytest_asyncio
 
-from arbiter.store.sqlite import SQLiteScoreStore
-from arbiter.calibration.loop import OverrideCalibration
-from arbiter.types import QualityScore
+from nthlayer_measure.store.sqlite import SQLiteScoreStore
+from nthlayer_measure.calibration.loop import OverrideCalibration
+from nthlayer_measure.types import QualityScore
 
 
 @pytest_asyncio.fixture

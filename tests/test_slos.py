@@ -4,10 +4,10 @@ import pytest
 import pytest_asyncio
 from datetime import datetime, timedelta, timezone
 
-from arbiter.calibration.slos import JudgmentSLOChecker, JudgmentSLOReport
-from arbiter.manifest import JudgmentSLO
-from arbiter.store.sqlite import SQLiteScoreStore
-from arbiter.types import QualityScore
+from nthlayer_measure.calibration.slos import JudgmentSLOChecker, JudgmentSLOReport
+from nthlayer_measure.manifest import JudgmentSLO
+from nthlayer_measure.store.sqlite import SQLiteScoreStore
+from nthlayer_measure.types import QualityScore
 
 
 @pytest_asyncio.fixture

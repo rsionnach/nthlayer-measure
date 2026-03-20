@@ -5,8 +5,8 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from typing import Protocol
 
-from arbiter.store.protocol import ScoreStore
-from arbiter.types import TrendWindow
+from nthlayer_measure.store.protocol import ScoreStore
+from nthlayer_measure.types import TrendWindow
 
 
 class TrendTracker(Protocol):

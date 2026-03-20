@@ -15,14 +15,14 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 import pytest_asyncio
 
-from verdict import SQLiteVerdictStore, AccuracyFilter, VerdictFilter, create as verdict_create
+from nthlayer_learn import SQLiteVerdictStore, AccuracyFilter, VerdictFilter, create as verdict_create
 
-from arbiter.calibration.verdict_calibration import VerdictCalibration
-from arbiter.cli import cmd_calibrate, _build_pipeline
-from arbiter.config import ArbiterConfig, VerdictConfig, load_config
-from arbiter.pipeline.router import DEFAULT_APPROVE_THRESHOLD, PipelineRouter
-from arbiter.store.sqlite import SQLiteScoreStore
-from arbiter.types import QualityScore
+from nthlayer_measure.calibration.verdict_calibration import VerdictCalibration
+from nthlayer_measure.cli import cmd_calibrate, _build_pipeline
+from nthlayer_measure.config import ArbiterConfig, VerdictConfig, load_config
+from nthlayer_measure.pipeline.router import DEFAULT_APPROVE_THRESHOLD, PipelineRouter
+from nthlayer_measure.store.sqlite import SQLiteScoreStore
+from nthlayer_measure.types import QualityScore
 
 
 class TestVerdictConfig:
@@ -625,7 +625,7 @@ class TestOverrideCreateCLI:
         return cfg
 
     def test_override_create_saves_and_prints(self, tmp_path):
-        from arbiter.cli import cmd_overrides_create
+        from nthlayer_measure.cli import cmd_overrides_create
 
         cfg = self._seed_score(tmp_path)
         args = _argparse.Namespace(
@@ -644,7 +644,7 @@ class TestOverrideCreateCLI:
         assert result["corrected_dimensions"] == {"correctness": 0.4}
 
     def test_override_create_multiple_dimensions(self, tmp_path):
-        from arbiter.cli import cmd_overrides_create
+        from nthlayer_measure.cli import cmd_overrides_create
 
         cfg = self._seed_score(tmp_path)
         args = _argparse.Namespace(
@@ -662,7 +662,7 @@ class TestOverrideCreateCLI:
 
     def test_override_create_resolves_linked_verdict(self, tmp_path):
         """Override via CLI should resolve the linked verdict when verdict store is configured."""
-        from arbiter.cli import cmd_overrides_create
+        from nthlayer_measure.cli import cmd_overrides_create
 
         # Seed score, create verdict, link them
         verdict_store = SQLiteVerdictStore(str(tmp_path / "verdicts.db"))
@@ -705,7 +705,7 @@ class TestOverrideCreateCLI:
         vs2.close()
 
     def test_override_create_bad_dimension_format(self, tmp_path):
-        from arbiter.cli import cmd_overrides_create
+        from nthlayer_measure.cli import cmd_overrides_create
 
         cfg = self._seed_score(tmp_path)
         args = _argparse.Namespace(
@@ -725,7 +725,7 @@ class TestCLIVerdictWiring:
     """Tests that CLI wires verdict store when config has verdict section."""
 
     def test_build_pipeline_includes_verdict_store(self, tmp_path):
-        from arbiter.config import ArbiterConfig, VerdictConfig
+        from nthlayer_measure.config import ArbiterConfig, VerdictConfig
 
         config = ArbiterConfig(
             verdict=VerdictConfig(
@@ -738,7 +738,7 @@ class TestCLIVerdictWiring:
         assert router._verdict_store is not None
 
     def test_build_pipeline_no_verdict_config(self, tmp_path):
-        from arbiter.config import ArbiterConfig
+        from nthlayer_measure.config import ArbiterConfig
 
         config = ArbiterConfig()
         config.store.path = str(tmp_path / "arbiter.db")

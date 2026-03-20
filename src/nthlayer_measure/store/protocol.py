@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Protocol
 
-from arbiter.types import QualityScore
+from nthlayer_measure.types import QualityScore
 
 
 class ScoreStore(Protocol):

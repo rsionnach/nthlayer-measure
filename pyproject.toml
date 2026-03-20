@@ -3,19 +3,22 @@ requires = ["setuptools>=68.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "arbiter"
+name = "nthlayer-measure"
 version = "0.1.0"
 description = "Universal quality measurement engine for AI agent output"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 license = {text = "Apache-2.0"}
-dependencies = ["pyyaml>=6.0", "anthropic>=0.39.0", "verdict"]
+dependencies = ["pyyaml>=6.0", "anthropic>=0.39.0", "nthlayer-learn"]
 
 [project.optional-dependencies]
-dev = ["pytest>=7.0", "pytest-asyncio>=0.23,<1.0"]
+dev = ["pytest>=7.0", "pytest-asyncio>=0.23,<1.0", "ruff>=0.8"]
 otel = ["opentelemetry-api>=1.20.0", "opentelemetry-sdk>=1.20.0"]
 
 [project.scripts]
-arbiter = "arbiter.cli:main"
+nthlayer-measure = "nthlayer_measure.cli:main"
+
+[tool.uv.sources]
+nthlayer-learn = { path = "../verdicts/lib/python" }
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

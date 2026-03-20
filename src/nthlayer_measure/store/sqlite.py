@@ -9,10 +9,10 @@ import uuid
 from datetime import datetime
 from pathlib import Path
 
-from verdict import VerdictStore as VerdictStoreBase
+from nthlayer_learn import VerdictStore as VerdictStoreBase
 
-from arbiter.telemetry import emit_override_event, emit_state_transition_event
-from arbiter.types import QualityScore
+from nthlayer_measure.telemetry import emit_override_event, emit_state_transition_event
+from nthlayer_measure.types import QualityScore
 
 _SCHEMA_PATH = Path(__file__).parent / "schema.sql"
 

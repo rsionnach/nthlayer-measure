@@ -4,8 +4,8 @@ import pytest
 import pytest_asyncio
 from datetime import datetime, timedelta, timezone
 
-from arbiter.store.sqlite import SQLiteScoreStore
-from arbiter.types import QualityScore
+from nthlayer_measure.store.sqlite import SQLiteScoreStore
+from nthlayer_measure.types import QualityScore
 
 
 @pytest_asyncio.fixture

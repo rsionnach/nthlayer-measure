@@ -2,7 +2,7 @@
 
 **Universal quality measurement engine for AI agent output.**
 
-[![Status: Implemented](https://img.shields.io/badge/Status-Implemented-green?style=for-the-badge)](https://github.com/rsionnach/arbiter)
+[![Status: Implemented](https://img.shields.io/badge/Status-Implemented-green?style=for-the-badge)](https://github.com/rsionnach/nthlayer-measure)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-green?style=for-the-badge)](LICENSE)
 
 If you're running multiple AI agents in production, you're asking the same question every team asks at scale: "which of my agents is producing good work, and which is silently producing garbage?" The Arbiter answers that question. Point it at your agents, and it tells you which ones are reliable, which ones are degrading, and which ones need to be reined in before they cause damage.
@@ -61,16 +61,16 @@ agents:
 pip install -e .
 
 # Start the evaluation pipeline (listens for agent output via webhook)
-arbiter serve
+nthlayer-measure serve
 
 # One-shot evaluation of a file
-arbiter evaluate output.txt --agent-name code-reviewer
+nthlayer-measure evaluate output.txt --agent-name code-reviewer
 
 # Check agent status (trend window + autonomy level)
-arbiter status code-reviewer
+nthlayer-measure status code-reviewer
 
 # Run calibration report (how accurate is the Arbiter's own judgment?)
-arbiter calibrate --agent code-reviewer
+nthlayer-measure calibrate --agent code-reviewer
 ```
 
 ---
@@ -82,35 +82,35 @@ All subcommands accept `-c/--config <path>` (default: `arbiter.yaml`).
 ```bash
 # Start the pipeline — adapter listens, evaluates incoming output, persists scores,
 # runs governance checks. Default when no subcommand is given.
-arbiter serve
+nthlayer-measure serve
 
 # Evaluate a single file or stdin. Prints JSON with scores, confidence, cost.
-arbiter evaluate output.txt --agent-name my-agent --task-id pr-1234
-echo "some output" | arbiter evaluate --agent-name my-agent
+nthlayer-measure evaluate output.txt --agent-name my-agent --task-id pr-1234
+echo "some output" | nthlayer-measure evaluate --agent-name my-agent
 
 # Agent trend window: dimension averages, reversal rate, confidence, cost, autonomy level
-arbiter status my-agent --window-days 14
+nthlayer-measure status my-agent --window-days 14
 
 # Calibration: how well does the Arbiter agree with human corrections?
 # Without --agent: MAE report across all agents
 # With --agent: full judgment SLO compliance report (uses OpenSRM manifest if available)
-arbiter calibrate --window-days 30
-arbiter calibrate --agent code-reviewer --window-days 30
+nthlayer-measure calibrate --window-days 30
+nthlayer-measure calibrate --agent code-reviewer --window-days 30
 
 # List recent human overrides (corrections to Arbiter scores)
-arbiter overrides list --days 7 --agent code-reviewer
+nthlayer-measure overrides list --days 7 --agent code-reviewer
 
 # Governance: check current autonomy level
-arbiter governance show my-agent
+nthlayer-measure governance show my-agent
 
 # Governance: restore autonomy (requires human approver — safety ratchet)
-arbiter governance restore my-agent full --approver admin@example.com
+nthlayer-measure governance restore my-agent full --approver admin@example.com
 ```
 
 ### Sample output
 
 ```bash
-$ arbiter status code-reviewer
+$ nthlayer-measure status code-reviewer
 {
   "agent_name": "code-reviewer",
   "window_days": 7,
@@ -188,7 +188,7 @@ Without a manifest, the Arbiter still computes all signals — it just doesn't h
 ### Running a calibration report
 
 ```bash
-$ arbiter calibrate --agent code-reviewer --window-days 30
+$ nthlayer-measure calibrate --agent code-reviewer --window-days 30
 {
   "agent_name": "code-reviewer",
   "window_days": 30,
@@ -244,7 +244,7 @@ This matters because teams routinely cut review depth or use cheaper models to s
 
 ## Integration with OpenSRM
 
-The Arbiter reads judgment SLO thresholds from [OpenSRM](https://github.com/rsionnach/opensrm) manifests when they're available. An agent's manifest declares its quality targets:
+The Arbiter reads judgment SLO thresholds from [OpenSRM](https://github.com/rsionnach/nthlayer-spec) manifests when they're available. An agent's manifest declares its quality targets:
 
 ```yaml
 # agent.reliability.yaml
@@ -327,7 +327,7 @@ The Arbiter is one component in the OpenSRM ecosystem. Each component solves a c
 **How the Arbiter fits in:**
 
 - Every evaluation produces a **verdict** stored in the shared Verdict Store. Self-calibration queries `verdict.accuracy()` to measure the Arbiter's own judgment quality. Human overrides call `verdict.resolve()` — the same mechanism used across all ecosystem components.
-- **Quality verdicts** flow to [SitRep](https://github.com/rsionnach/sitrep) as events for correlation with other signals (deployments, model version changes), and to [Mayday](https://github.com/rsionnach/mayday) during incident response. OTel side-effects of verdict operations feed [NthLayer](https://github.com/rsionnach/nthlayer)-generated dashboards.
+- **Quality verdicts** flow to [SitRep](https://github.com/rsionnach/nthlayer-correlate) as events for correlation with other signals (deployments, model version changes), and to [Mayday](https://github.com/rsionnach/nthlayer-respond) during incident response. OTel side-effects of verdict operations feed [NthLayer](https://github.com/rsionnach/nthlayer)-generated dashboards.
 - **Governance decisions** adjust agent autonomy across the ecosystem, including Mayday's incident response agents and SitRep's correlation agent
 - **Cost tracking data** feeds into NthLayer-generated dashboards so operators see quality and cost together
 
@@ -335,12 +335,12 @@ Each component works alone. Someone who just needs agent quality measurement ado
 
 | Component | What it does | Link |
 |-----------|-------------|------|
-| **OpenSRM** | Specification for declaring service reliability requirements | [opensrm](https://github.com/rsionnach/opensrm) |
-| **Verdict** | Data primitive for recording AI judgments and measuring correctness | [verdicts](https://github.com/rsionnach/verdicts) |
-| **Arbiter** | Quality measurement and governance for AI agents (this repo) | [arbiter](https://github.com/rsionnach/arbiter) |
+| **nthlayer-spec** | Specification for declaring service reliability requirements | [nthlayer-spec](https://github.com/rsionnach/nthlayer-spec) |
+| **nthlayer-learn** | Data primitive for recording AI judgments and measuring correctness | [nthlayer-learn](https://github.com/rsionnach/nthlayer-learn) |
+| **nthlayer-measure** | Quality measurement and governance for AI agents (this repo) | [nthlayer-measure](https://github.com/rsionnach/nthlayer-measure) |
 | **NthLayer** | Generate monitoring infrastructure from manifests | [nthlayer](https://github.com/rsionnach/nthlayer) |
-| **SitRep** | Situational awareness through signal correlation | [sitrep](https://github.com/rsionnach/sitrep) |
-| **Mayday** | Multi-agent incident response | [mayday](https://github.com/rsionnach/mayday) |
+| **nthlayer-correlate** | Situational awareness through signal correlation | [nthlayer-correlate](https://github.com/rsionnach/nthlayer-correlate) |
+| **nthlayer-respond** | Multi-agent incident response | [nthlayer-respond](https://github.com/rsionnach/nthlayer-respond) |
 
 ---
 

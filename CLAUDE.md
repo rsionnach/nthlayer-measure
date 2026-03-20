@@ -1,4 +1,4 @@
-# Arbiter — Agent Context
+# nthlayer-measure — Agent Context
 
 Universal quality measurement engine for AI agent output. Evaluates agent output quality, tracks per-agent trends over rolling windows, detects degradation, self-calibrates its own judgment accuracy, and governs agent autonomy based on measured performance.
 
@@ -147,12 +147,12 @@ Implemented as ErrorBudgetGovernance. On each `check_agent` call, fetches the ag
 
 ## Verdict Integration
 
-Every evaluation creates a verdict via `PipelineRouter.run()`. Every human override resolves the linked verdict. System-wide accuracy is queryable via `VerdictCalibration` or `arbiter calibrate --verdict`.
+Every evaluation creates a verdict via `PipelineRouter.run()`. Every human override resolves the linked verdict. System-wide accuracy is queryable via `VerdictCalibration` or `nthlayer-measure calibrate --verdict`.
 
 **Integration points:**
 - `PipelineRouter`: after `save_score()`, calls `verdict_create()` then `verdict_store.put()` then `store.set_verdict_id()`. Wrapped in try/except — fail open (logs WARNING, pipeline continues).
 - `SQLiteScoreStore`: after `save_override()`, calls `verdict_store.resolve(verdict_id, "overridden", override={"by": corrector})` outside the threading lock.
-- `VerdictCalibration` (`src/arbiter/calibration/verdict_calibration.py`): strangler fig alongside `JudgmentSLOChecker`. Queries `verdict_store.accuracy(AccuracyFilter(producer_system="arbiter", from_time=...))`. System-wide only — per-agent accuracy deferred to Phase 2+ (AccuracyFilter does not support filtering by subject.agent).
+- `VerdictCalibration` (`src/nthlayer_measure/calibration/verdict_calibration.py`): strangler fig alongside `JudgmentSLOChecker`. Queries `verdict_store.accuracy(AccuracyFilter(producer_system="arbiter", from_time=...))`. System-wide only — per-agent accuracy deferred to Phase 2+ (AccuracyFilter does not support filtering by subject.agent).
 
 **Verdict shape produced by Arbiter:**
 - `subject.type`: always `"agent_output"` | `subject.ref`: task_id | `subject.agent`: agent_name | `subject.summary`: `"Evaluation of {agent_name}: {task_id}"`
@@ -261,7 +261,7 @@ verdict:
 
 ## CLI Subcommands
 
-`arbiter` is the entry point (`python -m arbiter` or installed script). All subcommands accept `-c/--config <path>` (default: `arbiter.yaml`). When no subcommand is given, `serve` runs by default.
+`nthlayer-measure` is the entry point (`python -m nthlayer_measure` or installed script). All subcommands accept `-c/--config <path>` (default: `arbiter.yaml`). When no subcommand is given, `serve` runs by default.
 
 | Subcommand | Purpose |
 |------------|---------|
@@ -302,12 +302,12 @@ verdict:
 
 | Component | Role |
 |-----------|------|
-| [opensrm](https://github.com/rsionnach/opensrm) | Shared manifest spec |
-| [verdict](../verdicts/) | Data primitive — Arbiter evaluation output becomes a verdict; self-calibration queries verdict accuracy |
-| [arbiter](https://github.com/rsionnach/arbiter) | This repo — quality measurement + governance |
-| [nthlayer](https://github.com/rsionnach/nthlayer) | Generates monitoring infrastructure from manifests |
-| [sitrep](https://github.com/rsionnach/sitrep) | Signal correlation and situational awareness |
-| [mayday](https://github.com/rsionnach/mayday) | Multi-agent incident response |
+| [nthlayer-spec](../nthlayer-spec/) | Shared manifest spec |
+| [nthlayer-learn](../verdicts/) | Data primitive — Arbiter evaluation output becomes a verdict; self-calibration queries verdict accuracy |
+| [nthlayer-measure](../arbiter/) | This repo — quality measurement + governance |
+| [nthlayer](../nthlayer/) | Generates monitoring infrastructure from manifests |
+| [nthlayer-correlate](../sitrep/) | Signal correlation and situational awareness |
+| [nthlayer-respond](../mayday/) | Multi-agent incident response |
 
 Each component works independently. Composition happens through shared OpenSRM manifests and OTel conventions.
 

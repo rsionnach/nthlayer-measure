@@ -4,8 +4,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from arbiter.detection.protocol import Alert
-from arbiter.types import QualityScore
+from nthlayer_measure.detection.protocol import Alert
+from nthlayer_measure.types import QualityScore
 
 
 def _make_score(**kwargs) -> QualityScore:
@@ -24,11 +24,11 @@ def _make_score(**kwargs) -> QualityScore:
 
 def test_emit_decision_event_with_otel():
     mock_span = MagicMock()
-    with patch("arbiter.telemetry._HAS_OTEL", True), \
-         patch("arbiter.telemetry.trace") as mock_trace:
+    with patch("nthlayer_measure.telemetry._HAS_OTEL", True), \
+         patch("nthlayer_measure.telemetry.trace") as mock_trace:
         mock_trace.get_current_span.return_value = mock_span
 
-        from arbiter.telemetry import emit_decision_event
+        from nthlayer_measure.telemetry import emit_decision_event
         score = _make_score()
         alerts = [
             Alert(agent_name="agent-a", metric_name="reversal_rate",
@@ -45,19 +45,19 @@ def test_emit_decision_event_with_otel():
 
 
 def test_noop_without_otel():
-    with patch("arbiter.telemetry._HAS_OTEL", False):
-        from arbiter.telemetry import emit_decision_event
+    with patch("nthlayer_measure.telemetry._HAS_OTEL", False):
+        from nthlayer_measure.telemetry import emit_decision_event
         # Should not raise even with no OTel
         emit_decision_event(_make_score())
 
 
 def test_emit_override_event():
     mock_span = MagicMock()
-    with patch("arbiter.telemetry._HAS_OTEL", True), \
-         patch("arbiter.telemetry.trace") as mock_trace:
+    with patch("nthlayer_measure.telemetry._HAS_OTEL", True), \
+         patch("nthlayer_measure.telemetry.trace") as mock_trace:
         mock_trace.get_current_span.return_value = mock_span
 
-        from arbiter.telemetry import emit_override_event
+        from nthlayer_measure.telemetry import emit_override_event
         emit_override_event("e1", "correctness", 0.9, 0.5, "reviewer")
 
         mock_span.add_event.assert_called_once()
@@ -70,11 +70,11 @@ def test_emit_override_event():
 
 def test_emit_state_transition():
     mock_span = MagicMock()
-    with patch("arbiter.telemetry._HAS_OTEL", True), \
-         patch("arbiter.telemetry.trace") as mock_trace:
+    with patch("nthlayer_measure.telemetry._HAS_OTEL", True), \
+         patch("nthlayer_measure.telemetry.trace") as mock_trace:
         mock_trace.get_current_span.return_value = mock_span
 
-        from arbiter.telemetry import emit_state_transition_event
+        from nthlayer_measure.telemetry import emit_state_transition_event
         emit_state_transition_event("agent-a", "full", "supervised", "governance")
 
         mock_span.add_event.assert_called_once()

@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Protocol
 
-from arbiter.types import TrendWindow
+from nthlayer_measure.types import TrendWindow
 
 
 @dataclass(frozen=True)

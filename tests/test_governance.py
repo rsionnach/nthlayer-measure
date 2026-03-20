@@ -5,10 +5,10 @@ import pytest
 import pytest_asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from arbiter.store.sqlite import SQLiteScoreStore
-from arbiter.governance.engine import ErrorBudgetGovernance
-from arbiter.trends.tracker import StoreTrendTracker
-from arbiter.types import AutonomyLevel, QualityScore
+from nthlayer_measure.store.sqlite import SQLiteScoreStore
+from nthlayer_measure.governance.engine import ErrorBudgetGovernance
+from nthlayer_measure.trends.tracker import StoreTrendTracker
+from nthlayer_measure.types import AutonomyLevel, QualityScore
 
 
 @pytest_asyncio.fixture

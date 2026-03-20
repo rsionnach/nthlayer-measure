@@ -1,6 +1,6 @@
 # Contributing to the Arbiter
 
-Thanks for your interest in contributing to the Arbiter. This project is part of the [OpenSRM ecosystem](https://github.com/rsionnach/opensrm), and contributions of all kinds are welcome, whether that's bug reports, documentation improvements, feature proposals, or code.
+Thanks for your interest in contributing to the Arbiter. This project is part of the [OpenSRM ecosystem](https://github.com/rsionnach/nthlayer-spec), and contributions of all kinds are welcome, whether that's bug reports, documentation improvements, feature proposals, or code.
 
 ## Getting Started
 
@@ -12,7 +12,7 @@ Thanks for your interest in contributing to the Arbiter. This project is part of
 
 ## Shared Conventions
 
-The Arbiter follows the [OpenSRM specification](https://github.com/rsionnach/opensrm) for manifest formats, semantic conventions, and telemetry standards. If your contribution touches how the Arbiter reads manifests, emits telemetry, or interacts with other ecosystem components, please review the spec first to ensure alignment.
+The Arbiter follows the [OpenSRM specification](https://github.com/rsionnach/nthlayer-spec) for manifest formats, semantic conventions, and telemetry standards. If your contribution touches how the Arbiter reads manifests, emits telemetry, or interacts with other ecosystem components, please review the spec first to ensure alignment.
 
 The Arbiter follows [Zero Framework Cognition](ZFC.md) as its core architectural principle. Transport (receiving data, routing it, persisting results) belongs in code. Judgment (evaluating quality, scoring output, deciding what's good or bad) belongs to the model. If you're unsure whether something is transport or judgment, check the ZFC document or open an issue to discuss.
 

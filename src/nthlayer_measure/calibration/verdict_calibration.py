@@ -8,7 +8,7 @@ from __future__ import annotations
 import asyncio
 from datetime import datetime, timedelta, timezone
 
-from verdict import AccuracyFilter, AccuracyReport, VerdictStore
+from nthlayer_learn import AccuracyFilter, AccuracyReport, VerdictStore
 
 
 class VerdictCalibration:

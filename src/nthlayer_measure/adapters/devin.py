@@ -13,7 +13,7 @@ import os
 from collections import OrderedDict
 from typing import AsyncIterator
 
-from arbiter.types import AgentOutput
+from nthlayer_measure.types import AgentOutput
 
 logger = logging.getLogger(__name__)
 

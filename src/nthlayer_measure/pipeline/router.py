@@ -4,14 +4,14 @@ from __future__ import annotations
 
 import asyncio
 
-from arbiter.adapters.protocol import Adapter
-from arbiter.detection.protocol import DegradationDetector
-from arbiter.governance.engine import GovernanceEngine
-from arbiter.pipeline.evaluator import Evaluator
-from arbiter.store.protocol import ScoreStore
-from arbiter.telemetry import emit_decision_event
-from arbiter.trends.tracker import TrendTracker
-from verdict import create as verdict_create, VerdictStore as VerdictStoreBase
+from nthlayer_measure.adapters.protocol import Adapter
+from nthlayer_measure.detection.protocol import DegradationDetector
+from nthlayer_measure.governance.engine import GovernanceEngine
+from nthlayer_measure.pipeline.evaluator import Evaluator
+from nthlayer_measure.store.protocol import ScoreStore
+from nthlayer_measure.telemetry import emit_decision_event
+from nthlayer_measure.trends.tracker import TrendTracker
+from nthlayer_learn import create as verdict_create, VerdictStore as VerdictStoreBase
 
 import logging
 

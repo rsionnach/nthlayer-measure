@@ -2,8 +2,8 @@
 
 import pytest
 
-from arbiter.detection.detector import SLOThresholds, ThresholdDetector
-from arbiter.types import TrendWindow
+from nthlayer_measure.detection.detector import SLOThresholds, ThresholdDetector
+from nthlayer_measure.types import TrendWindow
 
 
 def _make_window(**kwargs) -> TrendWindow:

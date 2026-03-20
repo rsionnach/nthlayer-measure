@@ -10,7 +10,7 @@ import json
 from collections import OrderedDict
 from typing import AsyncIterator
 
-from arbiter.types import AgentOutput
+from nthlayer_measure.types import AgentOutput
 
 _MAX_SEEN = 10_000
 

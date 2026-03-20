@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Protocol
 
-from arbiter.store.protocol import ScoreStore
+from nthlayer_measure.store.protocol import ScoreStore
 
 
 @dataclass(frozen=True)
