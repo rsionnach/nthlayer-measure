@@ -6,7 +6,7 @@ import asyncio
 import sqlite3
 import threading
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 from nthlayer_learn import VerdictStore as VerdictStoreBase
@@ -27,8 +27,12 @@ class SQLiteScoreStore:
         self._conn.execute("PRAGMA foreign_keys = ON")
         self._lock = threading.Lock()
         self._verdict_store = verdict_store
-        self._apply_schema()
-        self._migrate_verdict_id()
+        try:
+            self._apply_schema()
+            self._migrate_verdict_id()
+        except Exception:
+            self._conn.close()
+            raise
 
     def _apply_schema(self) -> None:
         schema = _SCHEMA_PATH.read_text()
@@ -57,7 +61,7 @@ class SQLiteScoreStore:
                     score.evaluator_model,
                     score.confidence,
                     score.cost_usd,
-                    score.timestamp.isoformat(),
+                    score.timestamp.strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
                 ),
             )
             for dim_name, dim_score in score.dimensions.items():
@@ -94,9 +98,12 @@ class SQLiteScoreStore:
                 "d.dimension, d.score AS dim_score, d.reasoning "
                 "FROM evaluations e "
                 "LEFT JOIN dimension_scores d ON e.eval_id = d.eval_id "
-                "WHERE e.agent_name = ? AND e.created_at >= ? "
-                "ORDER BY e.created_at DESC",
-                (agent_name, since.isoformat()),
+                "WHERE e.eval_id IN ("
+                "  SELECT eval_id FROM evaluations "
+                "  WHERE agent_name = ? AND created_at >= ? "
+                "  ORDER BY created_at DESC LIMIT ?"
+                ") ORDER BY e.created_at DESC",
+                (agent_name, since.strftime("%Y-%m-%dT%H:%M:%S.%fZ"), limit),
             ).fetchall()
 
         # Group rows by eval_id
@@ -121,7 +128,7 @@ class SQLiteScoreStore:
                     evals[eid]["reasoning"][row["dimension"]] = row["reasoning"]
 
         results = []
-        for data in list(evals.values())[:limit]:
+        for data in evals.values():
             results.append(
                 QualityScore(
                     eval_id=data["eval_id"],
@@ -214,13 +221,13 @@ class SQLiteScoreStore:
                     "FROM overrides o JOIN evaluations e ON o.eval_id = e.eval_id "
                     "WHERE o.created_at >= ? AND e.agent_name = ? "
                     "ORDER BY o.created_at DESC LIMIT ?",
-                    (since.isoformat(), agent_name, limit),
+                    (since.strftime("%Y-%m-%dT%H:%M:%S.%fZ"), agent_name, limit),
                 ).fetchall()
             else:
                 rows = self._conn.execute(
                     "SELECT override_id, eval_id, dimension, original_score, corrected_score, corrector, created_at "
                     "FROM overrides WHERE created_at >= ? ORDER BY created_at DESC LIMIT ?",
-                    (since.isoformat(), limit),
+                    (since.strftime("%Y-%m-%dT%H:%M:%S.%fZ"), limit),
                 ).fetchall()
             return [dict(r) for r in rows]
 

@@ -1,4 +1,4 @@
-"""CLI entry point for Arbiter — subcommands for serve, evaluate, status, calibrate, overrides, governance."""
+"""CLI entry point for nthlayer-measure — subcommands for serve, evaluate, status, calibrate, overrides, governance."""
 
 from __future__ import annotations
 
@@ -9,19 +9,19 @@ import sys
 from dataclasses import asdict
 from pathlib import Path
 
-from nthlayer_measure.config import ArbiterConfig, load_config
+from nthlayer_measure.config import MeasureConfig, load_config
 from nthlayer_measure.types import AutonomyLevel
 
 
-def _load_config(args: argparse.Namespace) -> ArbiterConfig:
-    config_path = getattr(args, "config", None) or Path("arbiter.yaml")
+def _load_config(args: argparse.Namespace) -> MeasureConfig:
+    config_path = getattr(args, "config", None) or Path("measure.yaml")
     if not config_path.exists():
         print(f"Config file not found: {config_path}", file=sys.stderr)
         sys.exit(1)
     return load_config(config_path)
 
 
-def _build_store(config: ArbiterConfig) -> "SQLiteScoreStore":
+def _build_store(config: MeasureConfig) -> "SQLiteScoreStore":
     from nthlayer_measure.store.sqlite import SQLiteScoreStore
 
     return SQLiteScoreStore(config.store.path)
@@ -33,7 +33,7 @@ def _build_tracker(store: "SQLiteScoreStore") -> "StoreTrendTracker":
     return StoreTrendTracker(store)
 
 
-def _build_evaluator(config: ArbiterConfig) -> "ModelEvaluator":
+def _build_evaluator(config: MeasureConfig) -> "ModelEvaluator":
     from nthlayer_measure.pipeline.evaluator import ModelEvaluator
 
     return ModelEvaluator(
@@ -42,7 +42,7 @@ def _build_evaluator(config: ArbiterConfig) -> "ModelEvaluator":
     )
 
 
-def _build_adapter(config: ArbiterConfig):
+def _build_adapter(config: MeasureConfig):
     """Build adapter from config. Supports webhook, gastown, devin.
 
     Currently only the first agent config is used for adapter construction.
@@ -84,12 +84,12 @@ def _build_adapter(config: ArbiterConfig):
         from nthlayer_measure.adapters.webhook import WebhookAdapter
 
         return WebhookAdapter(
-            host=ac.get("host", "0.0.0.0"),
+            host=ac.get("host", "127.0.0.1"),
             port=ac.get("port", 8080),
         )
 
 
-def _build_pipeline(config: ArbiterConfig):
+def _build_pipeline(config: MeasureConfig):
     from nthlayer_measure.detection.detector import SLOThresholds, ThresholdDetector
     from nthlayer_measure.governance.engine import ErrorBudgetGovernance
     from nthlayer_measure.pipeline.router import PipelineRouter
@@ -214,7 +214,7 @@ def cmd_calibrate(args: argparse.Namespace) -> None:
         # Verdict-based calibration (system-wide)
         if config.verdict is None:
             print(
-                "Error: --verdict requires a 'verdict' section in arbiter.yaml",
+                "Error: --verdict requires a 'verdict' section in measure.yaml",
                 file=sys.stderr,
             )
             sys.exit(1)
@@ -292,7 +292,14 @@ def cmd_overrides_create(args: argparse.Namespace) -> None:
             )
             sys.exit(1)
         name, val = d.split("=", 1)
-        corrected_dimensions[name] = float(val)
+        score = float(val)
+        if not (0.0 <= score <= 1.0):
+            print(
+                f"Error: score must be between 0.0 and 1.0 (got {score} for '{name}')",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        corrected_dimensions[name] = score
 
     async def _run():
         await store.save_override(args.eval_id, corrected_dimensions, args.corrector)
@@ -375,13 +382,13 @@ def main() -> None:
     """Entry point with subcommands."""
     parser = argparse.ArgumentParser(
         prog="nthlayer-measure",
-        description="Arbiter — AI agent quality measurement",
+        description="nthlayer-measure — AI agent quality measurement",
     )
     parser.add_argument(
         "-c", "--config",
         type=Path,
-        default=Path("arbiter.yaml"),
-        help="Path to arbiter.yaml config file",
+        default=Path("measure.yaml"),
+        help="Path to measure.yaml config file",
     )
     subparsers = parser.add_subparsers(dest="command")
 

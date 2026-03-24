@@ -18,7 +18,7 @@ from nthlayer_learn import SQLiteVerdictStore, AccuracyFilter, VerdictFilter, cr
 
 from nthlayer_measure.calibration.verdict_calibration import VerdictCalibration
 from nthlayer_measure.cli import cmd_calibrate, _build_pipeline
-from nthlayer_measure.config import ArbiterConfig, VerdictConfig, load_config
+from nthlayer_measure.config import MeasureConfig, VerdictConfig, load_config
 from nthlayer_measure.pipeline.router import DEFAULT_APPROVE_THRESHOLD, PipelineRouter
 from nthlayer_measure.store.sqlite import SQLiteScoreStore
 from nthlayer_measure.types import QualityScore
@@ -36,7 +36,7 @@ class TestVerdictConfig:
         assert vc.store_path == "/tmp/custom.db"
 
     def test_arbiter_config_verdict_none_by_default(self):
-        config = ArbiterConfig()
+        config = MeasureConfig()
         assert config.verdict is None
 
     def test_load_config_without_verdict_section(self, tmp_path):
@@ -724,9 +724,9 @@ class TestCLIVerdictWiring:
     """Tests that CLI wires verdict store when config has verdict section."""
 
     def test_build_pipeline_includes_verdict_store(self, tmp_path):
-        from nthlayer_measure.config import ArbiterConfig, VerdictConfig
+        from nthlayer_measure.config import MeasureConfig, VerdictConfig
 
-        config = ArbiterConfig(
+        config = MeasureConfig(
             verdict=VerdictConfig(
                 store_path=str(tmp_path / "verdicts.db"),
             ),
@@ -737,9 +737,9 @@ class TestCLIVerdictWiring:
         assert router._verdict_store is not None
 
     def test_build_pipeline_no_verdict_config(self, tmp_path):
-        from nthlayer_measure.config import ArbiterConfig
+        from nthlayer_measure.config import MeasureConfig
 
-        config = ArbiterConfig()
+        config = MeasureConfig()
         config.store.path = str(tmp_path / "arbiter.db")
 
         router = _build_pipeline(config)

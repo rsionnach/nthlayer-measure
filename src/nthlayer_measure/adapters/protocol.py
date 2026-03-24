@@ -1,4 +1,4 @@
-"""Adapter protocol — the boundary between external systems and Arbiter."""
+"""Adapter protocol — the boundary between external systems and nthlayer-measure."""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""Configuration loading for Arbiter."""
+"""Configuration loading for nthlayer-measure."""
 
 from __future__ import annotations
 
@@ -34,7 +34,7 @@ class StoreConfig:
     """Configuration for the score store."""
 
     backend: str = "sqlite"
-    path: str = "arbiter.db"
+    path: str = "measure.db"
 
 
 @dataclass
@@ -62,8 +62,8 @@ class VerdictConfig:
 
 
 @dataclass
-class ArbiterConfig:
-    """Top-level Arbiter configuration matching arbiter.yaml shape."""
+class MeasureConfig:
+    """Top-level nthlayer-measure configuration matching measure.yaml shape."""
 
     evaluator: EvaluatorConfig = field(default_factory=EvaluatorConfig)
     store: StoreConfig = field(default_factory=StoreConfig)
@@ -74,11 +74,11 @@ class ArbiterConfig:
     verdict: VerdictConfig | None = None
 
 
-def load_config(path: Path) -> ArbiterConfig:
-    """Load ArbiterConfig from a YAML file."""
+def load_config(path: Path) -> MeasureConfig:
+    """Load MeasureConfig from a YAML file."""
     raw = yaml.safe_load(path.read_text())
     if raw is None:
-        return ArbiterConfig()
+        return MeasureConfig()
 
     def _section(key: str, cls: type):
         section = raw.get(key)
@@ -93,6 +93,8 @@ def load_config(path: Path) -> ArbiterConfig:
     governance = _section("governance", GovernanceConfig)
     detection = _section("detection", DetectionConfig)
     dimensions = raw.get("dimensions", ["correctness", "completeness", "safety"])
+    if not isinstance(dimensions, list):
+        raise ValueError(f"'dimensions' must be a list, got {type(dimensions).__name__}")
 
     agents = []
     for i, agent_data in enumerate(raw.get("agents", [])):
@@ -118,7 +120,7 @@ def load_config(path: Path) -> ArbiterConfig:
             raise ValueError(f"Config section 'verdict.store' must be a mapping, got {type(store_raw).__name__}")
         verdict_cfg = VerdictConfig(store_path=store_raw.get("path", "verdicts.db"))
 
-    return ArbiterConfig(
+    return MeasureConfig(
         evaluator=evaluator,
         store=store,
         governance=governance,

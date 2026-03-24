@@ -1,4 +1,4 @@
-"""Self-calibration loop — measures the Arbiter's own judgment accuracy.
+"""Self-calibration loop — measures nthlayer-measure's own judgment accuracy.
 
 Uses override data (human corrections) to compute how well the evaluator's
 scores match ground truth. Pure arithmetic over stored data (ZFC).

@@ -106,15 +106,9 @@ Respond with valid JSON only:
 
     def parse_governance_response(self, raw: str) -> tuple[bool, str]:
         """Parse model governance response. Returns (should_reduce, reason)."""
-        text = raw.strip()
-        if text.startswith("```"):
-            lines = text.split("\n")
-            if lines[0].strip().startswith("```"):
-                lines = lines[1:]
-            if lines and lines[-1].strip().startswith("```"):
-                lines = lines[:-1]
-            text = "\n".join(lines)
+        from nthlayer_measure._parsing import strip_markdown_fences
 
+        text = strip_markdown_fences(raw)
         data = json.loads(text)
         return bool(data.get("should_reduce", False)), str(data.get("reason", ""))
 

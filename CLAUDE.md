@@ -55,9 +55,9 @@ Implemented adapters: webhook (generic HTTP POST), GasTown (polls bd quality-rev
 
 **Adapter implementation notes:**
 - **webhook**: Raw asyncio TCP server (no framework). Default bind address `127.0.0.1:8080` (not `0.0.0.0`). 64 KB header limit, 10 MB body limit, 1000-item bounded internal queue. POST-only; returns 400/413/431/503 on violations.
-- **gastown**: Uses `asyncio.create_subprocess_exec` (not `shell=True`) to prevent injection. Queries `type:plugin-run` + `plugin:quality-review-result` wisps created in the last hour. Maps `worker` label to `agent_name`.
+- **gastown**: Uses `asyncio.create_subprocess_exec` (not `shell=True`) to prevent injection. Queries `type:plugin-run` + `plugin:quality-review-result` wisps created in the last hour. Maps `worker` label to `agent_name`. 60s timeout on `proc.communicate()`.
 - **devin**: Persistent lazy `httpx.AsyncClient` (one client per adapter instance, not per call). Polls `/v1/sessions`, fetches detail for completed/stopped/failed sessions. `_get_session` returns `None` on `HTTPError` and skips the yield — no exception propagation. Uses `structured_output` if present, falls back to `title`. Sets `agent_name = "devin:{session_id}"`.
-- Both polling adapters (gastown, devin) use a `_BoundedSeenSet` capped at 10 000 entries (LRU eviction via `OrderedDict`) to prevent unbounded memory growth.
+- Both polling adapters (gastown, devin) use a `BoundedSeenSet` (from `adapters/_util.py`) capped at 10 000 entries (LRU eviction via `OrderedDict`) to prevent unbounded memory growth.
 
 ### Evaluation Pipeline
 
@@ -196,9 +196,12 @@ OpenSRM integration is additive — a plain `arbiter.yaml` config works without 
 
 The nthlayer-measure uses the OpenSRM OTel semantic conventions for AI decision telemetry:
 
-- `gen_ai.decision.*` — emitted on every evaluation
-- `gen_ai.override.*` — emitted when a human corrects an evaluation
-- `gen_ai.agent.state.*` — emitted on governance state transitions
+- `gen_ai.decision.evaluated` — emitted on every evaluation (attrs: eval_id, agent_name, task_id, confidence, evaluator_model, dimension_count, cost_usd, alert_count)
+- `gen_ai.override.applied` — emitted when a human corrects an evaluation (attrs: eval_id, dimension, original_score, corrected_score, corrector)
+- `gen_ai.calibration.report` — emitted on every `JudgmentSLOChecker.check()` call (attrs: agent_name, window_days, reversal_rate, mae, false_accept_rate, precision, recall, reversal_rate_compliant)
+- `gen_ai.agent.state.changed` — emitted on governance state transitions (attrs: agent_name, from_level, to_level, triggered_by)
+
+All four are no-ops if `opentelemetry` is not installed (`telemetry.py` catches `ImportError` at module load).
 
 These feed into NthLayer-generated dashboards and nthlayer-correlate correlation. Emit them consistently — they are the integration surface with the rest of the ecosystem.
 
@@ -277,6 +280,11 @@ verdict:
 ---
 
 ## Testing
+
+`tests/test_webhook.py` — webhook adapter HTTP contract tests. Uses `port=0` for random port assignment (`server.sockets[0].getsockname()[1]`). Coverage:
+- Valid POST → 200 (`{"status": "ok"}`); item retrievable from `adapter._queue`
+- GET → 405; missing required fields → 400; invalid JSON → 400
+- Body > 10 MB (via `Content-Length`) → 413; headers > 64 KB → 431; queue full (1000 items) → 503
 
 `tests/test_verdict_integration.py` — Phase 1 integration test suite. Covers:
 - `TestVerdictConfig`: config loading with/without `verdict:` section; `VerdictConfig` default `store_path="verdicts.db"`.

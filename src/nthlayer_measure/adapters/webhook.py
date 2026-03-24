@@ -12,6 +12,7 @@ from nthlayer_measure.types import AgentOutput
 _MAX_HEADER_SIZE = 65_536  # 64 KB
 _MAX_BODY_SIZE = 10 * 1024 * 1024  # 10 MB
 _MAX_QUEUE_SIZE = 1000
+_CONNECTION_TIMEOUT = 30  # seconds — per-connection deadline to prevent slowloris
 
 
 class WebhookAdapter:
@@ -47,6 +48,21 @@ class WebhookAdapter:
         self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
     ) -> None:
         """Handle a single HTTP connection — minimal HTTP parsing."""
+        try:
+            await asyncio.wait_for(
+                self._handle_request(reader, writer), timeout=_CONNECTION_TIMEOUT
+            )
+        except asyncio.TimeoutError:
+            writer.close()
+            try:
+                await writer.wait_closed()
+            except Exception:
+                pass
+
+    async def _handle_request(
+        self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
+    ) -> None:
+        """Inner request handler, called within a per-connection timeout."""
         try:
             # Read request line and headers with size limit
             header_data = b""

@@ -14,7 +14,7 @@ if TYPE_CHECKING:
 try:
     from opentelemetry import trace
 
-    _tracer = trace.get_tracer("arbiter")
+    _tracer = trace.get_tracer("nthlayer-measure")
     _HAS_OTEL = True
 except ImportError:
     _tracer = None  # type: ignore[assignment]

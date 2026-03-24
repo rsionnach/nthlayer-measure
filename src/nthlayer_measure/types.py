@@ -1,4 +1,4 @@
-"""Shared data types for the Arbiter pipeline."""
+"""Shared data types for the nthlayer-measure pipeline."""
 
 from __future__ import annotations
 

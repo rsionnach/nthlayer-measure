@@ -1,4 +1,4 @@
--- Arbiter score store schema — this IS the storage contract.
+-- nthlayer-measure score store schema — this IS the storage contract.
 -- All judgment lives in the model, not the schema. No computed "good/bad" columns.
 
 CREATE TABLE IF NOT EXISTS evaluations (

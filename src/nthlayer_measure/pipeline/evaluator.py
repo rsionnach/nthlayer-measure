@@ -111,17 +111,9 @@ Respond with valid JSON only:
 
     def parse_response(self, raw: str, output: AgentOutput) -> QualityScore:
         """Parse model response JSON into a QualityScore. Pure transport."""
-        # Strip markdown code fences if present
-        text = raw.strip()
-        if text.startswith("```"):
-            lines = text.split("\n")
-            # Remove only the first and last fence lines
-            if lines[0].strip().startswith("```"):
-                lines = lines[1:]
-            if lines and lines[-1].strip().startswith("```"):
-                lines = lines[:-1]
-            text = "\n".join(lines)
+        from nthlayer_measure._parsing import strip_markdown_fences
 
+        text = strip_markdown_fences(raw)
         data = json.loads(text)
         dimensions: dict[str, float] = {}
         reasoning: dict[str, str] = {}
