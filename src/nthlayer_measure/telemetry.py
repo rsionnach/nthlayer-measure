@@ -68,9 +68,9 @@ def emit_calibration_report_event(
     agent_name: str,
     window_days: int,
     reversal_rate: float,
-    false_accept_rate: float,
-    precision: float,
-    recall: float,
+    false_accept_rate: float | None,
+    precision: float | None,
+    recall: float | None,
     mae: float,
     compliant: bool | None = None,
 ) -> None:
@@ -82,11 +82,14 @@ def emit_calibration_report_event(
         "agent_name": agent_name,
         "window_days": window_days,
         "reversal_rate": reversal_rate,
-        "false_accept_rate": false_accept_rate,
-        "precision": precision,
-        "recall": recall,
         "mae": mae,
     }
+    if false_accept_rate is not None:
+        attributes["false_accept_rate"] = false_accept_rate
+    if precision is not None:
+        attributes["precision"] = precision
+    if recall is not None:
+        attributes["recall"] = recall
     if compliant is not None:
         attributes["reversal_rate_compliant"] = compliant
     span.add_event("gen_ai.calibration.report", attributes=attributes)

@@ -87,7 +87,10 @@ class PipelineRouter:
 
     async def _create_verdict(self, score):
         """Map QualityScore to a verdict."""
-        avg_score = sum(score.dimensions.values()) / len(score.dimensions)
+        if not score.dimensions:
+            avg_score = 0.0
+        else:
+            avg_score = sum(score.dimensions.values()) / len(score.dimensions)
 
         reasoning_summary = "; ".join(
             f"{name}: {reason}" for name, reason in score.reasoning.items()
