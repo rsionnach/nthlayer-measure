@@ -6,7 +6,7 @@ import asyncio
 import sqlite3
 import threading
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
 
 from nthlayer_learn import VerdictStore as VerdictStoreBase
