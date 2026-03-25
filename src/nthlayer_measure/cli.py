@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import subprocess
 import sys
 from dataclasses import asdict
 from pathlib import Path
@@ -204,7 +205,6 @@ def cmd_evaluate_once(args: argparse.Namespace) -> None:
 
 def _trigger_chain(args, breach_results):
     """Invoke downstream components for breach results via subprocess."""
-    import subprocess
 
     config_path = getattr(args, "config", None) or Path("measure.yaml")
     if not config_path.exists():
@@ -242,7 +242,6 @@ def _trigger_chain(args, breach_results):
 
     # Forward respond args as JSON for correlate to pass through
     if respond_args:
-        import json
         cmd.extend(["--respond-args", json.dumps(respond_args)])
 
     print(f"\nTriggering correlate: {' '.join(cmd)}")
