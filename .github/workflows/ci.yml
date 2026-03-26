@@ -28,7 +28,7 @@ jobs:
       - name: Install dependencies
         run: |
           uv sync --extra dev --extra otel --no-sources
-          uv pip install "nthlayer-learn@git+https://github.com/rsionnach/nthlayer-learn.git@feat/cross-component-integration#subdirectory=lib/python"
+          uv pip install "nthlayer-learn>=0.2.0"
 
       - name: Run linting
         run: uv run --no-sync ruff check src/ tests/ --ignore E501,B008,F841,B007,E402,E721,E722,B012,I001,F821,E741
