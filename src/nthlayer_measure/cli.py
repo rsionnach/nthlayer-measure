@@ -262,6 +262,52 @@ def cmd_serve(args: argparse.Namespace) -> None:
     asyncio.run(router.run())
 
 
+def cmd_api_serve(args: argparse.Namespace) -> None:
+    """Start the HTTP API server."""
+    import uvicorn
+
+    from nthlayer_measure.api.server import create_app
+    from nthlayer_measure.governance.engine import ErrorBudgetGovernance
+
+    config = _load_config(args)
+    store = _build_store(config)
+    evaluator = _build_evaluator(config)
+    tracker = _build_tracker(store)
+
+    # Verdict store (optional)
+    verdict_store = None
+    if config.verdict is not None:
+        from nthlayer_learn import SQLiteVerdictStore
+        verdict_store = SQLiteVerdictStore(config.verdict.store_path)
+        store._verdict_store = verdict_store
+
+    # Governance (optional)
+    governance = None
+    if config.evaluator.model:
+        governance = ErrorBudgetGovernance(
+            store=store,
+            tracker=tracker,
+            model=config.evaluator.model,
+            window_days=config.governance.error_budget_window_days,
+            threshold=config.governance.error_budget_threshold,
+        )
+
+    app = create_app(
+        evaluator=evaluator,
+        store=store,
+        tracker=tracker,
+        dimensions=config.dimensions,
+        governance=governance,
+        verdict_store=verdict_store,
+        sync_timeout=args.sync_timeout,
+        max_workers=args.workers,
+    )
+
+    print(f"Starting nthlayer-measure API server on {args.host}:{args.port}")
+    print(f"OpenAPI docs: http://{args.host}:{args.port}/docs")
+    uvicorn.run(app, host=args.host, port=args.port)
+
+
 def cmd_evaluate(args: argparse.Namespace) -> None:
     """One-shot evaluation of a file or stdin."""
     from nthlayer_measure.types import AgentOutput
@@ -562,6 +608,13 @@ def main() -> None:
     )
     restore_parser.add_argument("--approver", required=True)
 
+    # api-serve (HTTP API server)
+    api_parser = subparsers.add_parser("api-serve", help="Start the HTTP API server")
+    api_parser.add_argument("--host", default="0.0.0.0", help="Bind address")
+    api_parser.add_argument("--port", type=int, default=8080, help="Port")
+    api_parser.add_argument("--workers", type=int, default=5, help="Evaluation queue workers")
+    api_parser.add_argument("--sync-timeout", type=float, default=30.0, help="Sync evaluation timeout (seconds)")
+
     # evaluate-once (Prometheus polling)
     eo_parser = subparsers.add_parser("evaluate-once", help="One-shot Prometheus SLO evaluation")
     eo_parser.add_argument("--prometheus-url", required=True, help="Prometheus base URL")
@@ -576,6 +629,7 @@ def main() -> None:
 
     handlers = {
         "serve": cmd_serve,
+        "api-serve": cmd_api_serve,
         "evaluate": cmd_evaluate,
         "evaluate-once": cmd_evaluate_once,
         "status": cmd_status,
