@@ -18,14 +18,12 @@ async def store(tmp_path):
     s.close()
 
 
-def _mock_model_response(should_reduce: bool, reason: str = "test reason") -> MagicMock:
-    """Build a mock Anthropic response for governance judgment."""
+def _mock_llm_response(should_reduce: bool, reason: str = "test reason"):
+    """Build a mock LLMResponse for governance judgment."""
+    from nthlayer_common.llm import LLMResponse
+
     response_json = json.dumps({"should_reduce": should_reduce, "reason": reason})
-    mock_response = MagicMock()
-    mock_content = MagicMock()
-    mock_content.text = response_json
-    mock_response.content = [mock_content]
-    return mock_response
+    return LLMResponse(text=response_json, model="test-model", provider="anthropic")
 
 
 def _make_governance(store, model="test-model", threshold=0.5):
@@ -70,12 +68,8 @@ async def test_model_says_no_reduction(store):
     governance = _make_governance(store)
     await store.save_score(_make_score("e1", {"correctness": 0.9}))
 
-    mock_client = AsyncMock()
-    mock_client.messages.create = AsyncMock(
-        return_value=_mock_model_response(False, "Scores are healthy")
-    )
-
-    with patch.object(governance, "_get_client", return_value=mock_client):
+    with patch("nthlayer_common.llm.llm_call",
+               return_value=_mock_llm_response(False, "Scores are healthy")):
         action = await governance.check_agent("agent-a")
 
     assert action is None
@@ -87,12 +81,8 @@ async def test_model_says_reduce(store):
     governance = _make_governance(store)
     await store.save_score(_make_score("e1", {"correctness": 0.3}))
 
-    mock_client = AsyncMock()
-    mock_client.messages.create = AsyncMock(
-        return_value=_mock_model_response(True, "Correctness is critically low")
-    )
-
-    with patch.object(governance, "_get_client", return_value=mock_client):
+    with patch("nthlayer_common.llm.llm_call",
+               return_value=_mock_llm_response(True, "Correctness is critically low")):
         action = await governance.check_agent("agent-a")
 
     assert action is not None
@@ -106,10 +96,8 @@ async def test_model_failure_fails_open(store):
     governance = _make_governance(store)
     await store.save_score(_make_score("e1", {"correctness": 0.1}))
 
-    mock_client = AsyncMock()
-    mock_client.messages.create = AsyncMock(side_effect=Exception("API down"))
-
-    with patch.object(governance, "_get_client", return_value=mock_client):
+    with patch("nthlayer_common.llm.llm_call",
+               side_effect=Exception("API down")):
         action = await governance.check_agent("agent-a")
 
     assert action is None
@@ -133,16 +121,13 @@ async def test_governance_prompt_includes_context(store):
     governance = _make_governance(store, threshold=0.6)
     await store.save_score(_make_score("e1", {"correctness": 0.5, "safety": 0.4}))
 
-    mock_client = AsyncMock()
-    mock_client.messages.create = AsyncMock(
-        return_value=_mock_model_response(False, "Not yet")
-    )
+    mock_llm = MagicMock(return_value=_mock_llm_response(False, "Not yet"))
 
-    with patch.object(governance, "_get_client", return_value=mock_client):
+    with patch("nthlayer_common.llm.llm_call", mock_llm):
         await governance.check_agent("agent-a")
 
-    call_args = mock_client.messages.create.call_args
-    prompt = call_args[1]["messages"][0]["content"]
+    call_args = mock_llm.call_args
+    prompt = call_args.kwargs.get("user") or call_args[1].get("user") or call_args[0][1]
     assert "0.6" in prompt  # threshold as context
     assert "correctness" in prompt
     assert "safety" in prompt

@@ -6,6 +6,21 @@ Universal quality measurement engine for AI agent output. Evaluates agent output
 
 ---
 
+<!-- AUTO-MANAGED: build-commands -->
+## Build Commands
+
+- **Install dependencies:** `uv sync --extra dev --extra otel --no-sources`
+- **Install nthlayer-learn (published):** `uv pip install "nthlayer-learn>=0.2.0"`
+- **Run tests:** `uv run --no-sync pytest tests/ -v`
+- **Run tests (CI flags):** `uv run --no-sync pytest tests/ -v --tb=short -x`
+- **Run linting:** `uv run --no-sync ruff check src/ tests/ --ignore E501,B008,F841,B007,E402,E721,E722,B012,I001,F821,E741`
+- **Run security scan (non-blocking):** `uv pip install pip-audit && uv run --no-sync pip-audit --progress-spinner off`
+- **Run CLI:** `uv run nthlayer-measure serve | evaluate | status | calibrate | overrides | governance | evaluate-once`
+- **CI:** pushes/PRs to `main` or `develop`; matrix tests Python 3.11 and 3.12
+<!-- END AUTO-MANAGED -->
+
+---
+
 ## What This Is
 
 The nthlayer-measure answers one question at production scale: which of my agents is producing good work, and which is silently degrading? It is framework-agnostic and model-agnostic. It works with any agent system via adapters, and the evaluation model is a configuration decision, not a hard dependency.
@@ -68,7 +83,7 @@ Implemented adapters: webhook (generic HTTP POST), GasTown (polls bd quality-rev
 - `evaluate_slos(prometheus_url, slos, verdict_store, hysteresis_threshold=3)`: async; evaluates all SLOs, applies breach semantics and hysteresis, returns `list[EvaluationResult]`.
 - `query_prometheus(client, url, promql)`: async instant query; returns scalar float or `None` on failure/NaN (`val != val` check). Catches `httpx.HTTPError`, `ValueError`, `KeyError`, `IndexError`.
 - `query_firing_alerts(client, url, service=None)`: async; queries `/api/v1/alerts`, returns list of dicts for alerts with `state=="firing"`; optional `service` label filter applied after fetch. Catches `httpx.HTTPError`, `ValueError`, `KeyError`.
-- `count_consecutive_breaches(verdicts, service, slo_name)`: walks verdict list newest-first; matches on `v.subject.type=="evaluation"` AND `v.subject.ref==service` AND `custom["slo_name"]==slo_name`; counts consecutive `breach=True` entries, stops at first non-breach.
+- `count_consecutive_breaches(verdicts, service, slo_name)`: walks verdict list newest-first; matches on `v.subject.type=="evaluation"` AND `v.subject.ref==service` AND `custom["slo_name"]==slo_name`; counts consecutive windows where `current > target` (raw breach condition — NOT the final hysteresis-gated `breach` flag, which would create a catch-22), stops at first non-breach.
 
 **PromQL queries (`_judgment_slo_query`):**
 - `reversal_rate`: `sum(increase(gen_ai_overrides_total[w])) / sum(increase(gen_ai_decisions_total[w]))`
@@ -334,9 +349,10 @@ trigger:
 
 `tests/test_prometheus.py` — Prometheus polling adapter tests. Uses `MemoryStore` from nthlayer_learn as verdict_store fixture. Coverage:
 - `load_specs`: parses 3 SLOs from sample spec (availability, reversal_rate, latency), classifies judgment vs traditional, normalizes availability target (99.9 → 0.999), builds correct PromQL (gen_ai_overrides_total / gen_ai_decisions_total for reversal_rate), handles empty dir.
+- `query_firing_alerts`: returns only `state=="firing"` alerts (not pending); optional `service=` filter applied after fetch returns only matching service label.
 - `query_prometheus`: returns float value, returns `None` on empty results, returns `None` on NaN response.
-- `count_consecutive_breaches`: counts from newest verdict, stops at first non-breach, returns 0 when newest is not a breach.
-- `evaluate_slos`: healthy → no breach; judgment breach below hysteresis threshold (consecutive=1, breach=False); judgment breach at threshold (3 consecutive, breach=True); traditional SLO breaches immediately without hysteresis; recovery (value returns healthy) resets consecutive to 0.
+- `count_consecutive_breaches`: counts consecutive windows where `current > target` from newest verdict, stops at first non-breach, returns 0 when newest is not a raw breach.
+- `evaluate_slos`: healthy → no breach; judgment breach below hysteresis threshold (consecutive=1, breach=False); judgment breach at threshold (3 consecutive, breach=True); traditional SLO breaches immediately without hysteresis; recovery (value returns healthy) resets consecutive to 0; SLO with no Prometheus data (query returns None) is skipped — not included in results.
 
 `tests/test_verdict_integration.py` — Phase 1 integration test suite. Covers:
 - `TestVerdictConfig`: config loading with/without `verdict:` section; `VerdictConfig` default `store_path="verdicts.db"`.

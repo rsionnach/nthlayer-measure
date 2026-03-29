@@ -64,15 +64,6 @@ class ModelEvaluator:
         self._model = model
         self._max_tokens = max_tokens
         self._timeout = timeout
-        self._client = None
-
-    def _get_client(self):
-        """Lazy-init the Anthropic client."""
-        if self._client is None:
-            import anthropic
-
-            self._client = anthropic.AsyncAnthropic()
-        return self._client
 
     def build_prompt(self, output: AgentOutput, dimensions: list[str]) -> str:
         """Construct the evaluation prompt. This IS the deliverable — prompt engineering."""
@@ -134,23 +125,26 @@ Respond with valid JSON only:
         )
 
     async def _call_model(self, prompt: str) -> _ModelResponse:
-        """Call the Anthropic API and return text + token counts."""
-        client = self._get_client()
-        response = await asyncio.wait_for(
-            client.messages.create(
+        """Call the LLM via the shared nthlayer-common wrapper."""
+        from nthlayer_common.llm import llm_call
+
+        result = await asyncio.wait_for(
+            asyncio.to_thread(
+                llm_call,
+                system="",
+                user=prompt,
                 model=self._model,
                 max_tokens=self._max_tokens,
-                messages=[{"role": "user", "content": prompt}],
+                timeout=int(self._timeout),
             ),
             timeout=self._timeout,
         )
-        if not response.content:
+        if not result.text:
             raise ValueError("Model returned empty content")
-        text = response.content[0].text
         return _ModelResponse(
-            text=text,
-            input_tokens=response.usage.input_tokens,
-            output_tokens=response.usage.output_tokens,
+            text=result.text,
+            input_tokens=result.input_tokens or 0,
+            output_tokens=result.output_tokens or 0,
         )
 
     async def evaluate(self, output: AgentOutput, dimensions: list[str]) -> QualityScore:

@@ -9,7 +9,7 @@ description = "Universal quality measurement engine for AI agent output"
 readme = "README.md"
 requires-python = ">=3.11"
 license = {text = "Apache-2.0"}
-dependencies = ["pyyaml>=6.0", "anthropic>=0.39.0", "nthlayer-learn"]
+dependencies = ["pyyaml>=6.0", "httpx>=0.27", "nthlayer-common", "nthlayer-learn"]
 
 [project.optional-dependencies]
 dev = ["pytest>=7.0", "pytest-asyncio>=0.23,<1.0", "ruff>=0.8"]
@@ -20,6 +20,7 @@ nthlayer-measure = "nthlayer_measure.cli:main"
 
 [tool.uv.sources]
 nthlayer-learn = { path = "../nthlayer-learn/lib/python" }
+nthlayer-common = { path = "../nthlayer-common" }
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

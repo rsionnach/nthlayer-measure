@@ -52,15 +52,6 @@ class ErrorBudgetGovernance:
         self._threshold = threshold
         self._model = model
         self._max_tokens = max_tokens
-        self._client = None
-
-    def _get_client(self):
-        """Lazy-init the Anthropic client."""
-        if self._client is None:
-            import anthropic
-
-            self._client = anthropic.AsyncAnthropic()
-        return self._client
 
     def build_governance_prompt(
         self, agent_name: str, trend: TrendWindow, current_level: AutonomyLevel
@@ -129,20 +120,24 @@ Respond with valid JSON only:
             return None  # Already at lowest level
 
         try:
+            from nthlayer_common.llm import llm_call
+
             prompt = self.build_governance_prompt(agent_name, trend, current)
-            client = self._get_client()
-            response = await asyncio.wait_for(
-                client.messages.create(
+            result = await asyncio.wait_for(
+                asyncio.to_thread(
+                    llm_call,
+                    system="",
+                    user=prompt,
                     model=self._model,
                     max_tokens=self._max_tokens,
-                    messages=[{"role": "user", "content": prompt}],
+                    timeout=60,
                 ),
                 timeout=60.0,
             )
-            if not response.content:
+            if not result.text:
                 logger.warning("Governance model returned empty content for %s", agent_name)
                 return None
-            should_reduce, reason = self.parse_governance_response(response.content[0].text)
+            should_reduce, reason = self.parse_governance_response(result.text)
         except Exception:
             # ZFC: fail open on model unavailability — no governance opinion
             logger.warning("Governance model call failed for %s, failing open", agent_name, exc_info=True)
