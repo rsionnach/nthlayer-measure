@@ -187,14 +187,20 @@ class EvaluationQueue:
         )
         payload["evaluation_id"] = eval_id
 
-        for attempt in range(3):
-            try:
-                async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient() as client:
+            for attempt in range(3):
+                try:
                     resp = await client.post(url, json=payload, timeout=10.0)
                     resp.raise_for_status()
                     return
-            except Exception:
-                if attempt == 2:
-                    logger.warning(
-                        "Callback failed after 3 attempts: %s", url
-                    )
+                except httpx.HTTPStatusError as exc:
+                    # Don't retry 4xx (permanent errors)
+                    if 400 <= exc.response.status_code < 500:
+                        logger.warning("Callback rejected (HTTP %d): %s", exc.response.status_code, url)
+                        return
+                except Exception:
+                    pass
+                if attempt < 2:
+                    await asyncio.sleep(1 * (2 ** attempt))  # 1s, 2s backoff
+                else:
+                    logger.warning("Callback failed after 3 attempts: %s", url)

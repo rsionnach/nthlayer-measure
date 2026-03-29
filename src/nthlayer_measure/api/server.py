@@ -319,12 +319,21 @@ def create_app(
         if isinstance(body, JSONResponse):
             return body
         resolutions = body.get("resolutions", [])
+        if len(resolutions) > 100:
+            return JSONResponse(
+                status_code=422,
+                content=build_error_response(422, f"Batch too large: {len(resolutions)} items (max 100)"),
+            )
         results = []
 
         for item in resolutions:
             vid = item.get("verdict_id")
             status = item.get("status")
             actor = item.get("actor", "")
+
+            if not vid or not status:
+                results.append({"verdict_id": vid, "status": "error", "error": "Missing required fields: verdict_id, status"})
+                continue
 
             try:
                 if status == "overridden":
@@ -417,8 +426,15 @@ def create_app(
                 content=build_error_response(503, "Governance not configured"),
             )
 
-        level = await governance.get_autonomy(agent_name)
-        window = await tracker.compute_window(agent_name, 7)
+        try:
+            level = await governance.get_autonomy(agent_name)
+            window = await tracker.compute_window(agent_name, 7)
+        except Exception:
+            logger.warning("Failed to fetch governance data for %s", agent_name, exc_info=True)
+            return JSONResponse(
+                status_code=503,
+                content=build_error_response(503, "Failed to fetch governance data"),
+            )
 
         return {
             "agent": agent_name,

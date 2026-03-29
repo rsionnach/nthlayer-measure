@@ -33,10 +33,10 @@ def normalise_input(body: dict) -> EvaluationRequest:
 
     Raises ValueError if required fields are missing.
     """
-    if "agent" not in body:
-        raise ValueError("Missing required field: 'agent'")
-    if "output" not in body:
-        raise ValueError("Missing required field: 'output'")
+    if not body.get("agent", "").strip():
+        raise ValueError("Missing or empty required field: 'agent'")
+    if not body.get("output", "").strip():
+        raise ValueError("Missing or empty required field: 'output'")
 
     return EvaluationRequest(
         agent_name=body["agent"],
