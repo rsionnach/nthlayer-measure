@@ -104,6 +104,25 @@ def test_trend_window_new_fields_explicit():
     assert tw.avg_cost_per_eval == 0.01
 
 
+def test_quality_score_tier_field():
+    score = QualityScore(
+        eval_id="e1", agent_name="a", task_id="t1",
+        dimensions={"correctness": 0.9},
+        tier="standard", auto_approved=False,
+    )
+    assert score.tier == "standard"
+    assert score.auto_approved is False
+
+
+def test_quality_score_tier_defaults():
+    score = QualityScore(
+        eval_id="e1", agent_name="a", task_id="t1",
+        dimensions={"correctness": 0.9},
+    )
+    assert score.tier is None
+    assert score.auto_approved is False
+
+
 def test_governance_action_construction():
     ga = GovernanceAction(
         agent_name="bot",

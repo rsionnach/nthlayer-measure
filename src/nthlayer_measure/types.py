@@ -42,6 +42,8 @@ class QualityScore:
     evaluator_model: str = ""
     cost_usd: float | None = None
     timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    tier: str | None = None
+    auto_approved: bool = False
 
 
 @dataclass(frozen=True)
