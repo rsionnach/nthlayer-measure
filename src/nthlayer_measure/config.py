@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -24,7 +25,7 @@ class AgentConfig:
 class EvaluatorConfig:
     """Configuration for the evaluation model."""
 
-    model: str = "claude-sonnet-4-20250514"
+    model: str = os.environ.get("NTHLAYER_MODEL", "claude-sonnet-4-20250514")
     max_tokens: int = 4096
     temperature: float = 0.0
 
