@@ -9,7 +9,12 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+from pathlib import Path
 from typing import Protocol
+
+from nthlayer_common.prompts import load_prompt, render_user_prompt
+
+_PROMPT_PATH = Path(__file__).parent.parent.parent.parent / "prompts" / "governance.yaml"
 
 from nthlayer_measure.store.protocol import ScoreStore
 from nthlayer_measure.trends.tracker import TrendTracker
@@ -56,44 +61,23 @@ class ErrorBudgetGovernance:
     def build_governance_prompt(
         self, agent_name: str, trend: TrendWindow, current_level: AutonomyLevel
     ) -> str:
-        """Construct the governance judgment prompt.
-
-        The threshold is operator context ('the operator considers this concerning'),
-        not a hard trigger. The model decides whether action is warranted.
-        """
+        """Construct the governance judgment prompt from YAML template."""
+        spec = load_prompt(_PROMPT_PATH)
         dims = "\n".join(
             f"  - {name}: {avg:.3f}" for name, avg in trend.dimension_averages.items()
         )
-        return f"""You are a governance advisor for an AI agent quality monitoring system.
-
-## Agent Trend Data
-- Agent: {agent_name}
-- Window: {trend.window_days} days
-- Evaluation count: {trend.evaluation_count}
-- Confidence mean: {trend.confidence_mean:.3f}
-- Reversal rate: {trend.reversal_rate:.3f}
-- Current autonomy level: {current_level.value}
-- Dimension averages:
-{dims}
-
-## Operator Preferences
-- The operator considers dimension scores below {self._threshold} to be concerning
-- Error budget window: {self._window_days} days
-
-## Decision
-Based on the trend data and operator preferences, should this agent's autonomy be reduced one level (from {current_level.value} to {self._reduce_level(current_level).value})?
-
-Consider:
-- Is the degradation significant enough to warrant action, or is it normal variance?
-- Which dimensions are underperforming and how critical might they be?
-- Does the evaluation count provide a statistically meaningful sample?
-- Is the current autonomy level already appropriate for the observed performance?
-
-Respond with valid JSON only:
-{{
-  "should_reduce": <bool>,
-  "reason": "<brief explanation of your decision>"
-}}"""
+        return render_user_prompt(
+            spec.user_template,
+            agent_name=agent_name,
+            window_days=str(trend.window_days),
+            evaluation_count=str(trend.evaluation_count),
+            confidence_mean=f"{trend.confidence_mean:.3f}",
+            reversal_rate=f"{trend.reversal_rate:.3f}",
+            current_level=current_level.value,
+            dimension_averages=dims,
+            threshold=str(self._threshold),
+            reduced_level=self._reduce_level(current_level).value,
+        )
 
     def parse_governance_response(self, raw: str) -> tuple[bool, str]:
         """Parse model governance response. Returns (should_reduce, reason)."""

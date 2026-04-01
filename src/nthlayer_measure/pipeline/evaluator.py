@@ -6,7 +6,12 @@ import asyncio
 import json
 import uuid
 from dataclasses import dataclass, replace
+from pathlib import Path
 from typing import Protocol
+
+from nthlayer_common.prompts import load_prompt, render_user_prompt
+
+_PROMPT_PATH = Path(__file__).parent.parent.parent.parent / "prompts" / "evaluator.yaml"
 
 from nthlayer_measure.types import AgentOutput, QualityScore
 
@@ -66,39 +71,17 @@ class ModelEvaluator:
         self._timeout = timeout
 
     def build_prompt(self, output: AgentOutput, dimensions: list[str]) -> str:
-        """Construct the evaluation prompt. This IS the deliverable — prompt engineering."""
+        """Construct the evaluation prompt from YAML template."""
+        spec = load_prompt(_PROMPT_PATH)
         dimensions_block = "\n".join(f"- {d}" for d in dimensions)
-        return f"""You are an evaluation judge. Score the following agent output on each dimension.
-
-## Agent Output
-- Agent: {output.agent_name}
-- Task: {output.task_id}
-- Type: {output.output_type}
-
-### Content
-<agent_output>
-{output.output_content}
-</agent_output>
-
-## Dimensions to Score
-{dimensions_block}
-
-## Instructions
-For each dimension, provide:
-1. A score from 0.0 to 1.0
-2. Brief reasoning for your score
-
-Also provide an overall confidence score (0.0 to 1.0) representing how confident you are in your evaluation.
-
-## Response Format
-Respond with valid JSON only:
-{{
-  "dimensions": {{
-    "<dimension_name>": {{"score": <float>, "reasoning": "<string>"}},
-    ...
-  }},
-  "confidence": <float>
-}}"""
+        return render_user_prompt(
+            spec.user_template,
+            agent_name=output.agent_name,
+            task_id=output.task_id,
+            output_type=output.output_type,
+            output_content=output.output_content,
+            dimensions_block=dimensions_block,
+        )
 
     def parse_response(self, raw: str, output: AgentOutput) -> QualityScore:
         """Parse model response JSON into a QualityScore. Pure transport."""
